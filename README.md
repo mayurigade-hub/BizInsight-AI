@@ -92,8 +92,8 @@ Choose **one** of the options below to isolate your project dependencies.
 #### Option B: Using Anaconda (conda)
 * **Create and activate the environment:**
   ```bash
-  conda create --name motive-env python=3.10 -y
-  conda activate motive-env
+  conda create --name BizInsight-AI-env python=3.10 -y
+  conda activate BizInsight-AI-env
   ```
 
 ### 3. Install Dependencies
