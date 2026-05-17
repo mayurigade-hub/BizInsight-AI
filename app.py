@@ -71,7 +71,7 @@ with tabs[2]:
 
     if uploaded_file:
         df = pd.read_csv(uploaded_file)
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(df, width="stretch")
 
         df["sentiment"] = df["review"].apply(get_sentiment)
 
@@ -89,8 +89,10 @@ if data:
     df = pd.DataFrame(data, columns=["review", "sentiment", "date"])
     df["date"] = pd.to_datetime(df["date"])
 
-    positive = (df["sentiment"] > 0).sum()
-    negative = (df["sentiment"] < 0).sum()
+    # Sentiment classification
+    positive = (df["sentiment"] > 0.1).sum()
+    neutral = ((df["sentiment"] >= -0.1) & (df["sentiment"] <= 0.1)).sum()
+    negative = (df["sentiment"] < -0.1).sum()
 
     trend = df.groupby(df["date"].dt.date)["sentiment"].mean()
 
@@ -103,29 +105,46 @@ if data:
     with tabs[0]:
         st.subheader("📈 Business Health Overview")
 
-        c1, c2, c3 = st.columns(3)
+        # Updated metrics
+        c1, c2, c3, c4 = st.columns(4)
+
         c1.metric("Total Reviews", len(df))
-        c2.metric("Positive", positive)
-        c3.metric("Negative", negative)
+        c2.metric("Positive 🟢", positive)
+        c3.metric("Neutral 🟡", neutral)
+        c4.metric("Negative 🔴", negative)
 
         st.markdown("---")
 
-        col1, col2 = st.columns([2,1])
+        col1, col2 = st.columns([2, 1])
 
         with col1:
             st.subheader("Customer Satisfaction Trend")
             st.line_chart(trend)
 
         with col2:
-            fig, ax = plt.subplots()
-            ax.bar(["Positive", "Negative"], [positive, negative])
-            st.pyplot(fig)
+            st.subheader("Sentiment Distribution")
+
+            fig, ax = plt.subplots(figsize=(5, 4))
+
+            categories = ["Positive", "Neutral", "Negative"]
+            counts = [positive, neutral, negative]
+            colors = ["#2ecc71", "#f1c40f", "#e74c3c"]
+
+            ax.bar(categories, counts, color=colors)
+            ax.set_ylabel("Number of Reviews")
+            
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+
+            fig.tight_layout()
+            st.pyplot(fig, width="stretch")
+            
+            plt.close(fig)
 
         st.markdown("---")
 
         st.subheader("Top Customer Issues")
         st.write(list(keywords))
-
 
     # ================= AI ASSISTANT =================
 
@@ -138,7 +157,6 @@ if data:
         if user_q:
             with st.spinner("Analyzing feedback..."):
                 st.success(ask_ai(user_q, df["review"].tolist()))
-
 
     # ================= CONTROLS =================
 
