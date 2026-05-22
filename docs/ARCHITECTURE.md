@@ -43,7 +43,7 @@ Runs automatically when a CSV is uploaded. Each review string is passed through 
 ### 3. Analytics — Pandas, Matplotlib, Scikit-learn
 Three responsibilities live in this layer:
 - **Trend tracking**: Pandas aggregates sentiment scores by date; Matplotlib renders the time-series chart.
-- **Issue detection**: Scikit-learn (TF-IDF + clustering) surfaces the most frequently mentioned topics across all reviews.
+- **Issue detection**: Scikit-learn (CountVectorizer) surfaces the most frequently mentioned words across all reviews.
 - All analytics are computed on demand inside `app.py`; there is no separate analytics module yet.
 
 ### 4. AI Assistant — DeepSeek via OpenRouter
@@ -61,6 +61,7 @@ When a user asks a free-text question in the dashboard, `app.py` sends the quest
 | `app.py` | Streamlit UI + orchestration logic |
 | `database.py` | SQLite schema and CRUD helpers |
 | `requirements.txt` | All Python dependencies |
+| `pdf_generator.py` | PDF report generation logic |
 
 ---
 
