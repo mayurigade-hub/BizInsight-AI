@@ -181,6 +181,7 @@ if data:
 
         with col2:
             st.pyplot(fig)
+            plt.close(fig)  # Fix: prevents matplotlib memory leak
             st.markdown("---")
 
         st.subheader("Top Customer Issues")
