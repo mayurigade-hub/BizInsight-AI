@@ -5,14 +5,13 @@ import requests
 import pandas as pd
 import matplotlib.pyplot as plt
 from dotenv import load_dotenv
-
 load_dotenv()
-
 import streamlit as st
 st.set_page_config(page_title="BizInsight AI", layout="wide")
 
 from sklearn.feature_extraction.text import CountVectorizer
 from database import insert_feedback, fetch_feedback, clear_data
+
 from openai import OpenAI
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from clustering.run_clustering import run_pipeline
@@ -22,15 +21,16 @@ api_key = os.getenv("OPENROUTER_API_KEY")
 if not api_key:
     raise ValueError("OPENROUTER_API_KEY environment variable not set. Please create a .env file with your API key.")
 
-api_key = st.secrets.get("OPENROUTER_API_KEY") or os.getenv("OPENROUTER_API_KEY")
+api_key = os.getenv("OPENROUTER_API_KEY")
 
 if not api_key:
-    raise ValueError("OPENROUTER_API_KEY not found in Streamlit secrets or environment variables.")
-
-client = OpenAI(
-    api_key=api_key,
-    base_url="https://openrouter.ai/api/v1"
-)
+    st.warning("OPENROUTER_API_KEY not found. AI Assistant features will be disabled.")
+    client = None
+else:
+    client = OpenAI(
+        api_key=api_key,
+        base_url="https://openrouter.ai/api/v1"
+    )
 
 vader_analyzer = SentimentIntensityAnalyzer()
 
@@ -52,8 +52,7 @@ def clean_text_for_sentiment(text):
     text = re.sub(r'\s+', ' ', text).strip()
     return text
 
-def ask_ai(question, reviews):
-    context = "\n".join(reviews[:40])
+# ================= AI ASSISTANT =================
 
     prompt = f"""
     You are a professional business analyst.
@@ -79,9 +78,13 @@ def ask_ai(question, reviews):
 
 # ================= DATA UPLOAD =================
 with tabs[2]:
+
     st.subheader("📂 Upload Customer Reviews")
 
-    uploaded_file = st.file_uploader("Upload CSV with review column", type="csv")
+    uploaded_file = st.file_uploader(
+        "Upload CSV with review column",
+        type="csv"
+    )
 
     if uploaded_file:
         # CRITICAL FIX: We need to send the original reviews to the RAG API for vectorization, not the cleaned reviews, to preserve important details like ticket numbers or specific product mentions that might be lost in cleaning. 
@@ -146,8 +149,21 @@ if data:
     df = pd.DataFrame(data, columns=["original_review", "cleaned_review", "sentiment", "date"])
     df["date"] = pd.to_datetime(df["date"])
 
+    # Sentiment Counts
+
     positive = (df["sentiment"] > 0).sum()
     negative = (df["sentiment"] < 0).sum()
+    neutral = (df["sentiment"] == 0).sum()
+
+    total_reviews = len(df)
+
+    # Percentages
+
+    positive_percent = round((positive / total_reviews) * 100, 2)
+    negative_percent = round((negative / total_reviews) * 100, 2)
+    neutral_percent = round((neutral / total_reviews) * 100, 2)
+
+    # Trend
 
     trend = df.groupby(df["date"].dt.date)["sentiment"].mean()
 
@@ -155,15 +171,14 @@ if data:
     X = vectorizer.fit_transform(df["cleaned_review"])
     keywords = vectorizer.get_feature_names_out()
 
+    keyword_df = pd.DataFrame({
+        "Keyword": keywords,
+        "Frequency": keyword_counts
+    })
+
     # ================= DASHBOARD =================
 
     with tabs[0]:
-        st.subheader("📈 Business Health Overview")
-
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Total Reviews", len(df))
-        c2.metric("Positive", positive)
-        c3.metric("Negative", negative)
 
         st.markdown("---")
         
@@ -201,24 +216,33 @@ if data:
         col1, col2 = st.columns([2,1])
 
         with col1:
+
             st.subheader("Customer Satisfaction Trend")
-            st.line_chart(trend)
+            st.area_chart(trend)
 
         with col2:
-            st.pyplot(fig)
-            plt.close(fig)  # Fix: prevents matplotlib memory leak
+
+            fig3, ax3 = plt.subplots(figsize=(3.2, 3.2))
+
+
+            ax3.pie(
+                [positive, negative, neutral],
+                labels=["Positive", "Negative", "Neutral"],
+                autopct="%1.1f%%"
+            )
+
+            st.pyplot(fig3)
+            plt.close(fig3)
+
             st.markdown("---")
 
-        st.subheader("Top Customer Issues")
-        st.write(list(keywords))
+        # Histogram
 
     # ================= AI ASSISTANT =================
 
-    with tabs[1]:
-        st.subheader("🤖 AI Business Consultant")
-        st.write("Ask questions about customer experience and improvement strategy.")
+        with col_small:
 
-        user_q = st.text_input("Type your business question here")
+            fig2, ax2 = plt.subplots(figsize=(2.8, 2.1))
 
         if user_q:
             with st.spinner("Analyzing feedback..."):
@@ -227,9 +251,11 @@ if data:
     # ================= CONTROLS =================
 
     with tabs[3]:
+
         st.subheader("⚙ System Controls")
 
         if st.button("🗑 Clear all stored feedback"):
+
             clear_data()
             st.success("All data removed successfully.")
             st.rerun()
