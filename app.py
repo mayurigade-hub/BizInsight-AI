@@ -12,7 +12,14 @@ from sklearn.feature_extraction.text import CountVectorizer
 from textblob import TextBlob
 from database import insert_feedback, fetch_feedback, clear_data
 
-from openai import OpenAI
+from openai import (
+    OpenAI,
+    AuthenticationError,
+    RateLimitError,
+    APITimeoutError,
+    APIConnectionError,
+    APIError,
+)
 
 # ---------- Chimera AI Client ----------
 
@@ -109,19 +116,24 @@ Question:
                     st.success("AI Insight Generated")
                     st.write(answer)
 
-                except Exception as e:
-                    logger.exception("AI API request failed")
-                    error_message = "Unable to generate AI insight at the moment."
-                    error_text = str(e).lower()
-                    if "401" in error_text or "authentication" in error_text:
-                        error_message = "Authentication failed. Please check API configuration."
-                    elif "429" in error_text or "rate limit" in error_text:
-                        error_message = "Rate limit exceeded. Please try again later."
-                    elif "timeout" in error_text:
-                        error_message = "Request timed out. Please retry."
-                    elif "connection" in error_text:
-                        error_message = "Network connection issue. Please check connectivity."
-                    st.error(error_message)
+                except AuthenticationError:
+                    logger.exception("Authentication failure during AI API request")
+                    st.error("Authentication failed. Please check API configuration.")
+                except RateLimitError:
+                    logger.exception("AI API rate limit exceeded")
+                    st.error("Rate limit exceeded. Please try again later.")
+                except APITimeoutError:
+                    logger.exception("AI API request timed out")
+                    st.error("Request timed out. Please retry.")
+                except APIConnectionError:
+                    logger.exception("AI API connection failure")
+                    st.error("Network connection issue. Please check connectivity.")
+                except APIError:
+                    logger.exception("General AI API error occurred")
+                    st.error("AI service is temporarily unavailable.")
+                except Exception:
+                    logger.exception("Unexpected error during AI request")
+                    st.error("Unable to generate AI insight at the moment.")
 
 
 # ================= DATA UPLOAD =================
@@ -283,21 +295,20 @@ if data:
         col_small, _ = st.columns([1.5, 4])
 
         with col_small:
-
             fig2, ax2 = plt.subplots(figsize=(2.8, 2.1))
-            
-            ax2.hist(df["sentiment"], bins=10)
-            
-            ax2.set_xlabel("Score", fontsize=8)
-            
-            ax2.set_ylabel("Freq", fontsize=8)
-            
-            ax2.tick_params(axis='both', labelsize=7)
-            
-            st.pyplot(fig2)
-            # Cleanup matplotlib figure from memory
-            
-            plt.close(fig2)
+            try:
+                ax2.hist(df["sentiment"], bins=10)
+                
+                ax2.set_xlabel("Score", fontsize=8)
+                
+                ax2.set_ylabel("Freq", fontsize=8)
+                
+                ax2.tick_params(axis='both', labelsize=7)
+                
+                st.pyplot(fig2)
+            finally:
+                # Ensure matplotlib resources are always released
+                plt.close(fig2)
 
         st.markdown("---")
 
