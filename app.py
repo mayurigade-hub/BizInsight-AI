@@ -278,10 +278,7 @@ if data:
 
         reviews = filtered_df["review"].dropna()
 
-        if reviews.empty or (
-            reviews.apply(lambda x: isinstance(x, str)).all() and
-            reviews.str.strip().eq("").all()
-        ):
+        if reviews.empty or reviews.str.strip().eq("").all():
             keywords = []
             keyword_counts = []
 
