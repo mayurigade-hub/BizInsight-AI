@@ -21,6 +21,8 @@ from openai import (
     APIError,
 )
 
+from sentiment import analyze
+
 # ---------- Chimera AI Client ----------
 
 api_key = os.getenv("OPENROUTER_API_KEY")
