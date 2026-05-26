@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 from sklearn.feature_extraction.text import CountVectorizer
 from textblob import TextBlob
 from database import insert_feedback, fetch_feedback, clear_data
-
 from openai import OpenAI
 
 # ---------- Chimera AI Client ----------
@@ -30,6 +29,8 @@ st.caption("AI-powered customer intelligence platform for business growth")
 if "data_cleared" in st.session_state:
     st.success("All data removed successfully.")
     del st.session_state.data_cleared
+if "messages" not in st.session_state:
+    st.session_state.messages=[]
 
 tabs = st.tabs(["📊 Dashboard", "🤖 AI Assistant", "📂 Data Upload", "⚙ Controls"])
 
@@ -41,22 +42,55 @@ def get_sentiment(text):
 
 # ================= AI ASSISTANT =================
 
+# ================= AI ASSISTANT =================
+
 with tabs[1]:
 
     st.subheader("🤖 AI Business Assistant")
 
-    question = st.text_area(
-        "Ask business insights question",
-        placeholder="Example: What are the major customer complaints?"
-    )
+    # Show previous messages
 
-    if st.button("Generate AI Insight"):
+    for message in st.session_state.messages:
+
+        with st.chat_message(message["role"]):
+            st.write(message["content"])
+    st.empty()
+
+    # Chat input at bottom
+
+    question = st.chat_input(
+        "Ask business insights question"
+    )
+    st.components.v1.html(
+    """
+    <script>
+        const textAreas = window.parent.document.querySelectorAll('textarea');
+        const lastTextArea = textAreas[textAreas.length - 1];
+        if (lastTextArea) {
+            lastTextArea.focus();
+        }
+    </script>
+    """,
+    height=0,
+)
+
+    if question:
+
+        # Show user message instantly
+
+        
+
+        # Save user message
+
+        st.session_state.messages.append(
+            {
+                "role": "user",
+                "content": question
+            }
+        )
 
         if client is None:
             st.warning("AI features unavailable because API key is missing.")
-
-        elif question.strip() == "":
-            st.warning("Please enter a question.")
 
         else:
 
@@ -72,7 +106,9 @@ with tabs[1]:
                     columns=["review", "sentiment", "date"]
                 )
 
-                reviews_text = "\n".join(df_ai["review"].astype(str).tolist())
+                reviews_text = "\n".join(
+                    df_ai["review"].astype(str).tolist()
+                )
 
                 prompt = f"""
 You are a business intelligence assistant.
@@ -87,7 +123,7 @@ Question:
                 try:
 
                     response = client.chat.completions.create(
-                        model="tngtech/deepseek-r1t2-chimera:free",
+                        model="openai/gpt-3.5-turbo",
                         messages=[
                             {
                                 "role": "system",
@@ -103,12 +139,22 @@ Question:
 
                     answer = response.choices[0].message.content
 
-                    st.success("AI Insight Generated")
-                    st.write(answer)
+                    # Save assistant response
+
+                    st.session_state.messages.append(
+                        {
+                            "role": "assistant",
+                            "content": answer
+                        }
+                    )
+                    st.rerun()
+
+                    # Show assistant response
+
+                     
 
                 except Exception as e:
                     st.error(f"Error generating AI response: {str(e)}")
-
 
 # ================= DATA UPLOAD =================
 
