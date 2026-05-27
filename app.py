@@ -141,7 +141,6 @@ with tabs[2]:
     st.markdown("---")
 
     # ── CSV upload ────────────────────────────────────────────────────────────
-    uploaded_file = st.file_uploader("Upload CSV with review column", type="csv", key = "uploader_1")
     uploaded_file = st.file_uploader(
         "Upload CSV with review column",
         type="csv",
