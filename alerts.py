@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import sqlite3
 from datetime import datetime, timedelta, timezone
 from typing import TypedDict
 
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 
-DB_NAME = "bizinsight.db"
+from database import get_connection
 
 
 class AlertResult(TypedDict):
@@ -63,8 +62,7 @@ def _fetch_windowed_reviews(window_days: int, offset_days: int = 0) -> pd.DataFr
     end = now - timedelta(days=offset_days)
     start = end - timedelta(days=window_days)
 
-    conn = sqlite3.connect(DB_NAME)
-    try:
+    with get_connection() as conn:
         return pd.read_sql_query(
             """
             SELECT original_review AS review, sentiment, created_at
@@ -79,8 +77,6 @@ def _fetch_windowed_reviews(window_days: int, offset_days: int = 0) -> pd.DataFr
                 end.strftime("%Y-%m-%d %H:%M:%S"),
             ),
         )
-    finally:
-        conn.close()
 
 
 def _negative_pct(df: pd.DataFrame) -> float:
@@ -149,7 +145,7 @@ def compute_alerts() -> AlertResult:
             window_days=BASELINE_DAYS,
             offset_days=WINDOW_DAYS,
         )
-    except (sqlite3.Error, pd.errors.DatabaseError):
+    except (pd.errors.DatabaseError, Exception):
         return _empty_alert_result()
 
     recent_negative_pct = _negative_pct(recent_df)
