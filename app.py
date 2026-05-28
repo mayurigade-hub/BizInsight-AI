@@ -14,7 +14,8 @@ st.set_page_config(page_title="BizInsight AI", layout="wide")
 from sklearn.feature_extraction.text import CountVectorizer
 from database import insert_feedback, fetch_feedback, clear_data
 from openai import OpenAI
-from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+import nltk
+from nltk.sentiment.vader import SentimentIntensityAnalyzer
 from clustering.run_clustering import run_pipeline
 from clustering.vectorize import load_model
 
@@ -26,9 +27,15 @@ if not api_key:
 else:
     client = OpenAI(api_key=api_key, base_url="https://openrouter.ai/api/v1")
 
-vader_analyzer = SentimentIntensityAnalyzer()
+@st.cache_resource
+def load_vader_analyzer():
+    try:
+        nltk.data.find("sentiment/vader_lexicon.zip")
+    except LookupError:
+        nltk.download("vader_lexicon", quiet=True)
+    return SentimentIntensityAnalyzer()
 
-vader_analyzer = SentimentIntensityAnalyzer()
+vader_analyzer = load_vader_analyzer()
 
 st.title("📊 BizInsight AI")
 st.caption("AI-powered customer intelligence platform for business growth")
@@ -50,7 +57,9 @@ def clean_text_for_sentiment(text):
 
 def ask_ai(question, reviews):
     """Legacy AI Assistant – uses first 40 reviews."""
+
     context = "\n".join(reviews[:40])
+
     prompt = f"""You are a business intelligence assistant.
 
 Customer reviews:
@@ -60,31 +69,29 @@ Customer reviews:
     {question}
     """
 
-                try:
+    try:
+        response = client.chat.completions.create(
+            model="tngtech/deepseek-r1t2-chimera:free",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You provide business intelligence insights."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0.4
+        )
 
-                    response = client.chat.completions.create(
-                        model="tngtech/deepseek-r1t2-chimera:free",
-                        messages=[
-                            {
-                                "role": "system",
-                                "content": "You provide business intelligence insights."
-                            },
-                            {
-                                "role": "user",
-                                "content": prompt
-                            }
-                        ],
-                        temperature=0.4
-                    )
+        answer = response.choices[0].message.content
 
-                    answer = response.choices[0].message.content
+        return answer
 
-                    st.success("AI Insight Generated")
-                    st.write(answer)
-
-                except Exception as e:
-                    st.error(f"Error generating AI response: {str(e)}")
-
+    except Exception as e:
+        st.error(f"Error generating AI response: {str(e)}")
+        return None
 # ================= DATA UPLOAD =================
 
 # ================= DATA UPLOAD =================
@@ -140,9 +147,9 @@ if data:
     df = pd.DataFrame(data, columns=["original_review", "cleaned_review", "sentiment", "date"])
     df["date"] = pd.to_datetime(df["date"])
 
-    positive = (df["sentiment"] > 0).sum()
-    negative = (df["sentiment"] < 0).sum()
-    neutral = (df["sentiment"] == 0).sum()
+    positive = (df["sentiment"] > 0.1).sum()
+    neutral = ((df["sentiment"] >= -0.1) & (df["sentiment"] <= 0.1)).sum()
+    negative = (df["sentiment"] < -0.1).sum()
     total = len(df)
 
     pos_pct = round(positive / total * 100, 2)
@@ -234,7 +241,9 @@ if data:
             if client:
                 with st.spinner("Analyzing..."):
                     answer = ask_ai(user_q, df["original_review"].tolist())
-                    st.success(answer)
+                    if answer:
+                        st.success("AI Insight Generated")
+                        st.write(answer)
             else:
                 st.warning("API key missing.")
 
