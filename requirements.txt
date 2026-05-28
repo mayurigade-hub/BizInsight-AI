@@ -11,4 +11,9 @@ vaderSentiment>=3.3.2          # fast rule-based scorer
 transformers>=4.40.0           # BERT models via HuggingFace
 torch>=2.2.0                   # PyTorch backend for BERT
 requests>=2.31.0          
+sentence-transformers
+bertopic
+hdbscan
+umap-learn
+pytest
 

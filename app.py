@@ -12,11 +12,10 @@ import streamlit as st
 st.set_page_config(page_title="BizInsight AI", layout="wide")
 
 from sklearn.feature_extraction.text import CountVectorizer
+from alerts import compute_alerts
 from database import insert_feedback, fetch_feedback, clear_data
 from openai import OpenAI
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
-from clustering.run_clustering import run_pipeline
-from clustering.vectorize import load_model
 
 # ---------- API Key ----------
 api_key = os.getenv("OPENROUTER_API_KEY")
@@ -28,12 +27,17 @@ else:
 
 vader_analyzer = SentimentIntensityAnalyzer()
 
-vader_analyzer = SentimentIntensityAnalyzer()
-
 st.title("📊 BizInsight AI")
 st.caption("AI-powered customer intelligence platform for business growth")
 
-tabs = st.tabs(["📊 Dashboard", "🤖 AI Assistant", "📂 Data Upload", "⚙ Controls", "🧠 Chatbot"])
+tabs = st.tabs([
+    "📊 Dashboard",
+    "🤖 AI Assistant",
+    "📂 Data Upload",
+    "⚠️ Alerts",
+    "⚙ Controls",
+    "🧠 Chatbot",
+])
 
 # ---------- Helper functions ----------
 def get_sentiment(text):
@@ -50,6 +54,9 @@ def clean_text_for_sentiment(text):
 
 def ask_ai(question, reviews):
     """Legacy AI Assistant – uses first 40 reviews."""
+    if client is None:
+        return "API key missing."
+
     context = "\n".join(reviews[:40])
     prompt = f"""You are a business intelligence assistant.
 
@@ -60,37 +67,33 @@ Customer reviews:
     {question}
     """
 
-                try:
-
-                    response = client.chat.completions.create(
-                        model="tngtech/deepseek-r1t2-chimera:free",
-                        messages=[
-                            {
-                                "role": "system",
-                                "content": "You provide business intelligence insights."
-                            },
-                            {
-                                "role": "user",
-                                "content": prompt
-                            }
-                        ],
-                        temperature=0.4
-                    )
-
-                    answer = response.choices[0].message.content
-
-                    st.success("AI Insight Generated")
-                    st.write(answer)
-
-                except Exception as e:
-                    st.error(f"Error generating AI response: {str(e)}")
-
-# ================= DATA UPLOAD =================
+    try:
+        response = client.chat.completions.create(
+            model="tngtech/deepseek-r1t2-chimera:free",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You provide business intelligence insights."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0.4
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"Error generating AI response: {str(e)}"
 
 # ================= DATA UPLOAD =================
 with tabs[2]:
     st.subheader("📂 Upload Customer Reviews")
-    uploaded_file = st.file_uploader("Upload CSV with review column", type="csv", key="csv_uploader")
+    uploaded_file = st.file_uploader(
+        "Upload CSV with review column",
+        type="csv",
+        key="csv_uploader",
+    )
 
     if uploaded_file:
         if st.button("Process and Upload Data"):
@@ -131,7 +134,6 @@ with tabs[2]:
                     st.error(f"Cannot connect to RAG API: {e}")
                     st.info("Start FastAPI server: python run_chatbot_api.py")
 
-        st.success(f"✅ Successfully added {len(df)} feedback entries!")
 # ================= FETCH DATA =================
 data = fetch_feedback()
 
@@ -175,14 +177,26 @@ if data:
 
         st.markdown("---")
         st.subheader("🔍 Smart Complaint Clustering")
-        embedding_model = load_model()
 
         if st.button("Find Complaint Clusters"):
-            with st.spinner("Clustering negative reviews..."):
-                negative_reviews = df[df["sentiment"] < 0]["cleaned_review"].tolist()
-                if len(negative_reviews) < 10:
-                    st.warning(f"Only {len(negative_reviews)} negative reviews. Need at least 10.")
-                else:
+            negative_reviews = df[df["sentiment"] < 0]["cleaned_review"].tolist()
+            if len(negative_reviews) < 10:
+                st.warning(f"Only {len(negative_reviews)} negative reviews. Need at least 10.")
+            else:
+                try:
+                    from clustering.run_clustering import run_pipeline
+                    from clustering.vectorize import load_model
+
+                    embedding_model = load_model()
+                except ModuleNotFoundError as e:
+                    st.error(f"Clustering dependency missing: {e.name}")
+                    st.info(
+                        "Install the clustering dependencies with: "
+                        "pip install -r requirements.txt"
+                    )
+                    st.stop()
+
+                with st.spinner("Clustering negative reviews..."):
                     result = run_pipeline(
                         negative_reviews,
                         embedding_model,
@@ -191,9 +205,17 @@ if data:
                         verbose=True
                     )
                     if result["success"]:
-                        st.success(f"✅ Found {result['n_clusters']} clusters from {result['total_negative_reviews']} reviews")
+                        st.success(
+                            f"✅ Found {result['n_clusters']} clusters from "
+                            f"{result['total_negative_reviews']} reviews"
+                        )
                         for cluster in result["clusters"]:
-                            with st.expander(f"📌 {cluster['name']} ({cluster['percentage']:.1f}%) - {cluster['count']} reviews"):
+                            title = (
+                                f"📌 {cluster['name']} "
+                                f"({cluster['percentage']:.1f}%) - "
+                                f"{cluster['count']} reviews"
+                            )
+                            with st.expander(title):
                                 st.write("**Example reviews:**")
                                 for ex in cluster.get('example_reviews', [])[:3]:
                                     st.write(f"- \"{ex}\"")
@@ -207,7 +229,11 @@ if data:
             st.area_chart(trend)
         with col2:
             fig, ax = plt.subplots()
-            ax.pie([positive, negative, neutral], labels=["Positive","Negative","Neutral"], autopct="%1.1f%%")
+            ax.pie(
+                [positive, negative, neutral],
+                labels=["Positive", "Negative", "Neutral"],
+                autopct="%1.1f%%",
+            )
             st.pyplot(fig)
             plt.close(fig)
 
@@ -221,7 +247,12 @@ if data:
 
         st.markdown("---")
         csv = df.to_csv(index=False).encode("utf-8")
-        st.download_button("⬇️ Download Feedback CSV", data=csv, file_name="feedback.csv", mime="text/csv")
+        st.download_button(
+            "⬇️ Download Feedback CSV",
+            data=csv,
+            file_name="feedback.csv",
+            mime="text/csv",
+        )
 
         st.subheader("Top Keywords")
         st.dataframe(keyword_df, use_container_width=True)
@@ -238,8 +269,81 @@ if data:
             else:
                 st.warning("API key missing.")
 
-    # ================= CONTROLS =================
+    # ================= ALERTS =================
     with tabs[3]:
+        st.subheader("⚠️ Trend Alert & Risk Detection")
+        st.caption("Computed over the last 7 days vs the prior 7-day baseline.")
+
+        alert = compute_alerts()
+
+        if alert["insufficient_data"]:
+            st.warning(
+                f"⚠️ Only **{alert['recent_count']}** review(s) in the last 7 days. "
+                "Need at least 5 for reliable alerts. Results may be misleading."
+            )
+
+        if alert["risk_level"] == 2:
+            st.error(
+                f"🔴 **HIGH RISK** — {alert['recent_negative_pct']}% of recent "
+                "reviews are negative. "
+                "Immediate attention required."
+            )
+        elif alert["risk_level"] == 1:
+            st.warning(
+                f"🟡 **MEDIUM RISK** — {alert['recent_negative_pct']}% of recent "
+                "reviews are negative."
+            )
+        else:
+            st.success(
+                f"🟢 **LOW RISK** — Sentiment is stable. "
+                f"{alert['recent_negative_pct']}% negative in the last 7 days."
+            )
+
+        st.markdown("---")
+
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Risk Score", alert["risk_score"])
+        m2.metric(
+            "Recent Negative %",
+            f"{alert['recent_negative_pct']}%",
+            delta=f"{alert['spike_delta']:+.1f}% vs prior week",
+            delta_color="inverse",
+        )
+        m3.metric("Reviews (last 7d)", alert["recent_count"])
+        m4.metric("Spike Detected", "Yes" if alert["spike_detected"] else "No")
+
+        st.markdown("---")
+
+        st.subheader("🔑 Top Risk Keywords (from negative reviews)")
+        if alert["top_risk_keywords"]:
+            keyword_cols = st.columns(4)
+            for i, kw in enumerate(alert["top_risk_keywords"]):
+                keyword_cols[i % 4].markdown(
+                    f"<span style='background:#ff4b4b22;padding:4px 10px;"
+                    f"border-radius:6px;color:#ff4b4b;font-weight:600'>{kw}</span>",
+                    unsafe_allow_html=True,
+                )
+        else:
+            st.info("No recurring negative keywords found in the last 7 days.")
+
+        st.markdown("---")
+
+        with st.expander("📊 How is this calculated?"):
+            st.markdown(f"""
+| Metric | Value |
+|---|---|
+| Recent window | Last 7 days |
+| Baseline window | Prior 7 days |
+| Recent negative % | `{alert['recent_negative_pct']}%` |
+| Baseline negative % | `{alert['baseline_negative_pct']}%` |
+| Delta (spike) | `{alert['spike_delta']:+.1f}%` |
+| Spike threshold | `+15%` change triggers spike flag |
+| High risk threshold | `>= 60%` negative OR `+30%` delta |
+| Medium risk threshold | `>= 40%` negative OR `+15%` delta |
+            """)
+
+    # ================= CONTROLS =================
+    with tabs[4]:
         st.subheader("⚙ System Controls")
         if st.button("🗑 Clear all data"):
             clear_data()
@@ -248,7 +352,7 @@ if data:
         st.warning("This action is permanent.")
 
     # ================= RAG CHATBOT =================
-    with tabs[4]:
+    with tabs[5]:
         st.subheader("🧠 RAG Chatbot – Ask your reviews")
         if "session_id" not in st.session_state:
             st.session_state.session_id = str(uuid.uuid4())
@@ -279,7 +383,11 @@ if data:
                     try:
                         resp = requests.post(
                             "http://localhost:8001/chat",
-                            json={"question": user_q, "use_memory": True, "session_id": st.session_state.session_id}
+                            json={
+                                "question": user_q,
+                                "use_memory": True,
+                                "session_id": st.session_state.session_id,
+                            },
                         )
                         if resp.status_code == 200:
                             data = resp.json()
@@ -289,7 +397,11 @@ if data:
                             with st.expander("📚 Source reviews"):
                                 for src in sources:
                                     st.write(f"- {src}")
-                            st.session_state.rag_messages.append({"role": "assistant", "content": answer, "sources": sources})
+                            st.session_state.rag_messages.append({
+                                "role": "assistant",
+                                "content": answer,
+                                "sources": sources,
+                            })
                         else:
                             st.error(f"API error: {resp.status_code}")
                     except Exception as e:

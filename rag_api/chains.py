@@ -122,3 +122,4 @@ class RAGChainManager:
             )
             self._conv_chains[chain_key] = chain # Store the chain in the dictionary with its unique key for future retrieval
         return self._conv_chains[chain_key] # Return the conversational chain for this session.
+ 

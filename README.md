@@ -1,282 +1,269 @@
 # 📊 BizInsight AI
 
-BizInsight AI is an AI-powered customer feedback analytics platform that helps businesses understand customer sentiment, identify key issues, track satisfaction trends, and receive intelligent improvement suggestions.
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![Streamlit](https://img.shields.io/badge/Streamlit-1.32%2B-FF4B4B.svg)](https://streamlit.io)
+[![Tests](https://img.shields.io/badge/tests-56%20passed-brightgreen.svg)](#-testing)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Built as a real-world business intelligence tool using Python, Streamlit, and advanced AI models.
+BizInsight AI is an **AI-powered customer feedback analytics platform** that helps businesses understand customer sentiment, detect emerging risks, cluster complaints, and ask AI-powered questions about review data — all from a single dashboard.
+
+> **What makes it different?** Most analytics tools are *reactive* — you notice problems only after manually inspecting charts. BizInsight AI is *proactive*: it **automatically detects negative sentiment spikes, identifies recurring complaint keywords, and assigns a risk level** so you catch problems early.
 
 ---
 
 ## 🚀 Features
 
-- Upload customer feedback CSV files  
-- Automatic sentiment analysis  
-- **Smart complaint clustering** – automatically groups negative reviews into business‑relevant categories (Payment, Delivery, Technical, Account, Product Quality, Customer Service, etc.)  
-- **Website integration chatbot** – embeddable widget that answers customer questions based on your reviews. 
-- Trend tracking over time  
-- Top issue detection  
-- AI-powered business assistant  
-- Persistent data storage  
-- Clean dashboard UI  
+| Feature | Description |
+|---------|-------------|
+| 📂 **CSV Upload** | Upload customer reviews and auto-score sentiment |
+| 📊 **Dashboard** | Satisfaction trends, sentiment distribution, top keywords, pie charts |
+| ⚠️ **Trend Alert & Risk Detection** | Automatic spike detection, risk scoring (High/Medium/Low), recurring complaint keywords |
+| 🔍 **Smart Complaint Clustering** | Groups negative reviews into categories using BERTopic + HDBSCAN |
+| 🤖 **AI Business Assistant** | Ask natural language questions about your reviews |
+| 🧠 **RAG Chatbot** | Conversational AI grounded in your actual review data (FastAPI + ChromaDB) |
+| ⬇️ **CSV Export** | Download processed feedback data |
 
 ---
 
-## 🧠 AI Capabilities
+## ⚠️ Trend Alert & Risk Detection (New Feature)
 
-- Understands customer pain points  
-- Identifies repeating issues  
-- Suggests improvement actions  
-- Provides business-style insights  
-- **Unsupervised topic modelling** – finds hidden complaint patterns without manual labelling  
+The alerts module makes BizInsight AI **proactive** by automatically flagging problems before they escalate.
+
+### How it works
+
+1. **Time-windowed analysis** — Compares the last 7 days of reviews against the prior 7-day baseline.
+2. **Negative sentiment tracking** — Calculates the percentage of reviews with `sentiment < 0`.
+3. **Spike detection** — Flags a spike when the negative % jumps by ≥ 15 points vs baseline.
+4. **Risk scoring** — Assigns a risk level based on thresholds:
+
+   | Level | Condition |
+   |-------|-----------|
+   | 🟢 Low | < 40% negative AND < 15% delta |
+   | 🟡 Medium | ≥ 40% negative OR ≥ 15% delta |
+   | 🔴 High | ≥ 60% negative OR ≥ 30% delta |
+
+5. **Risk keywords** — Extracts top recurring complaint terms using TF-IDF on negative reviews.
+6. **Insufficient data warning** — Warns when < 5 reviews exist in the recent window.
+
+### What you see in the dashboard
+
+- **Risk banner** — Color-coded alert (green/yellow/red) with actionable message
+- **Metric cards** — Risk score, recent negative %, review count, spike indicator
+- **Keyword badges** — Top 8 risk keywords highlighted for quick scanning
+- **Methodology expander** — Full breakdown of how the score is calculated
+
+---
+
+## 🔍 Smart Complaint Clustering
+
+Automatically groups negative reviews into meaningful categories using unsupervised ML:
+
+1. **Embedding** → Sentence-Transformer (`all-mpnet-base-v2`)
+2. **Dimensionality reduction** → UMAP (5 components, cosine distance)
+3. **Clustering** → HDBSCAN (density-based, auto noise detection)
+4. **Topic extraction** → BERTopic with c-TF-IDF
+5. **Category mapping** → Maps to 11 predefined categories (Payment, Delivery, Technical, etc.) or generates dynamic names
+
+---
+
+## 🧠 RAG Chatbot
+
+A conversational AI that answers business questions grounded **only** in your uploaded reviews.
+
+- **Vector Store** — ChromaDB with `all-MiniLM-L6-v2` embeddings
+- **Smart Retrieval** — Sentiment-aware filtering + multi-query expansion + cross-encoder re-ranking
+- **Grounded Answers** — LLM instructed to answer only from provided context
+- **Session Memory** — Follow-up questions with conversation history
 
 ---
 
 ## 🛠 Tech Stack
 
-- Python  
-- Streamlit  
-- Pandas, Matplotlib  
-- Scikit-learn  
-- **VADER** (sentiment analysis)  
-- **BERTopic** + **HDBSCAN** + **UMAP** (clustering)  
-- **Sentence‑Transformers** (`all-mpnet-base-v2`)  
-- **LangChain** (RAG pipeline)  
-- **ChromaDB** (vector database)  
-- **FastAPI** (RAG backend)  
-- **OpenRouter** (LLM gateway, Google Gemini)  
-- SQLite  
+| Layer | Technologies |
+|-------|-------------|
+| **Frontend** | Streamlit |
+| **Sentiment** | VADER, RoBERTa (BERT ensemble available in `sentiment.py`) |
+| **Clustering** | BERTopic, HDBSCAN, UMAP, Sentence-Transformers |
+| **RAG** | LangChain, ChromaDB, HuggingFace Embeddings, FastAPI |
+| **LLM** | OpenRouter (DeepSeek / Google Gemini) |
+| **Database** | SQLite |
+| **Alerts** | Pandas, scikit-learn (TF-IDF) |
 
 ---
-
-## 🔍 Smart Complaint Clustering (Core Feature)
-
-This module automatically groups customer complaints into meaningful clusters, names them (e.g., `"Payment Issues"`, `"Delivery Issues"`).
-
-### How it works
-
-1. **Preprocessing** – removes numbers, `#`, punctuation (keeps apostrophes). No stopword removal – preserves meaning.  
-2. **Embedding** – converts reviews into vectors using a Sentence‑Transformer (`all-mpnet-base-v2` or fine‑tuned model).  
-3. **Dimensionality reduction** – UMAP (5 components, cosine distance).  
-4. **Clustering** – HDBSCAN (density‑based, automatically marks noise as outliers).  
-5. **Topic extraction** – BERTopic extracts c‑TF‑IDF words.  
-6. **Category mapping** – each cluster is compared to 11 predefined category descriptions (Payment, Delivery, Technical, Account, Product Quality, Customer Service, Shipping Damage, Subscription, Checkout, Return/Refund). If similarity ≥ threshold, the cluster gets a standard name; otherwise it receives a dynamic name generated from the two most frequent content words + suffix (`Issues` / `Error` / `Delay`).  
-7. **Merge duplicates** – clusters with the same name are combined.
-
-### How to use it in the dashboard
-
-1. Upload a CSV with a `review` column.  
-2. Go to the **Dashboard** tab and click **“Find Complaint Clusters”**.  
-3. Wait for the analysis (first run loads the embedding model).  
-4. Expandable clusters – each shows name, number of reviews, some complaints.
-
-## 🧠 RAG Chatbot – Ask Your Reviews
-
-A dedicated conversational AI that answers business questions based **only** on the uploaded customer reviews.
-
-### How it works
-
-1. **Vector Store – Embeddings & Storage**
-Customer reviews are converted into 384‑dimensional vectors using `all-MiniLM-L6-v2` and stored in ChromaDB along with metadata (sentiment, date). The vector store is re‑synced automatically after every CSV upload. 
-2. **Smart Retrieval – Finding the Right Reviews**
-When a user asks a question, the backend does three things:
-
-Sentiment filtering – if the question mentions “problem”, “issue”, etc., only negative reviews are retrieved; for “good”, “great” etc., only positive reviews are used.
-
-Multi‑Query expansion – the LLM generates 3 rephrased versions of the question to catch more relevant reviews (improves recall).
-
-Cross‑encoder re‑ranking – a neural model (`ms‑marco-MiniLM‑L‑6‑v2`) scores each candidate review and keeps only the top‑8 most relevant ones (improves precision).  
-3. **LLM Answer – Grounded & Strict**
-The top‑8 reviews are inserted into a strict prompt that instructs the LLM (Google Gemini via OpenRouter) to answer only based on the provided context. If the answer is not in the reviews, the model says “The customer reviews do not mention this information.”
-4. **Conversation Memory – Follow‑up Questions**
-Session‑based memory (ConversationBufferMemory) keeps the chat history. The user can ask follow‑up questions without repeating context, and the retrieval automatically incorporates sentiment‑aware filtering for each new turn.
-
-### How to use it
-
-1. Start the FastAPI backend (separate terminal):  
-   ```bash
-   python run_chatbot_api.py
 
 ## 📂 Project Structure
 
-bizinsight-ai/
-├── app.py
-├── database.py
-├── run_chatbot_api.py
-├── sync_vectors.py
-├── rag_api /
-    ├── api.py
-    ├── chains.py
-    ├── config.py
-    ├── embeddings.py
-    ├── vector_store.py
-├── clustering/
-    ├── run_clustering.py
-    ├── preprocess.py
-    ├── vectorize.py
-├── models/finetuned_complaint_model_final
-├── data / reviews.csv
-├── tests / 
-    ├── product_reviews_1000.csv
-    ├── test1.csv
-    ├── test2.csv
-    ├── test3.csv
-
----
-
-## 📥 How to Run Locally
-
-### Install dependencies
-
-pip install -r requirements.txt
-
-streamlit run app.py
-
-
----
-
-### 5. **Requirements.txt** – update to match actual imports
-
-```txt
-streamlit
-pandas
-matplotlib
-scikit-learn
-vaderSentiment
-sentence-transformers
-langchain
-langchain-community
-langchain-chroma
-langchain-openai
-chromadb
-hdbscan
-umap-learn
-fastapi
-uvicorn
-nltk
-python-dotenv
-openai
-requests
+```
+BizInsight-AI/
+├── app.py                  # Main Streamlit application (6 tabs)
+├── alerts.py               #  Trend Alert & Risk Detection module
+├── database.py             # SQLite CRUD layer
+├── sentiment.py            # VADER + BERT ensemble scorer
+├── pdf_generator.py        # PDF report generator
+├── sync_vectors.py         # CLI tool to sync SQLite → ChromaDB
+├── run_chatbot_api.py      # FastAPI server launcher
+├── requirements.txt        # Python dependencies
+├── .env.example            # Environment variable template
+│
+├── clustering/             # Complaint clustering pipeline
+│   ├── run_clustering.py   # Full pipeline: embed → UMAP → HDBSCAN → BERTopic
+│   ├── vectorize.py        # Sentence-transformer model loading
+│   └── preprocess.py       # Text cleaning for clustering
+│
+├── rag_api/                # RAG chatbot backend
+│   ├── api.py              # FastAPI endpoints (/chat, /sync)
+│   ├── chains.py           # LangChain RAG chain with memory
+│   ├── vector_store.py     # ChromaDB integration
+│   ├── embeddings.py       # HuggingFace embeddings
+│   └── config.py           # Configuration constants
+│
+├── tests/                  # Test suite
+│   ├── test_alerts.py      # 38 tests for alerts module
+│   ├── test_database.py    # 18 tests for database layer
+│   └── alerts_test_reviews.csv
+│
+├── data/
+│   └── reviews.csv         # Sample review data
+└── docs/
+    └── ARCHITECTURE.md     # Architecture documentation
+```
 
 ---
 
 ## 📥 Installation & Setup
 
-Follow these steps to set up the project locally on your machine.
-
 ### 1. Clone the Repository
-Open your terminal and run:
+
 ```bash
-git clone https://github.com/Prateekiiitg56/BizInsight-AI.git
+git clone https://github.com/Rajarshisaha10/BizInsight-AI.git
 cd BizInsight-AI
 ```
 
 ### 2. Set Up a Virtual Environment
-Choose **one** of the options below to isolate your project dependencies.
 
-#### Option A: Using Standard Python (venv)
-* **Create the environment:**
-  ```bash
-  python -m venv venv
-  ```
-* **Activate the environment:**
-  * **Windows:**
-    ```bash
-    venv\Scripts\activate
-    ```
-  * **macOS / Linux:**
-    ```bash
-    source venv/bin/activate
-    ```
+**Using venv (recommended):**
+```bash
+python -m venv venv
 
-#### Option B: Using Anaconda (conda)
-* **Create and activate the environment:**
-  ```bash
-  conda create --name BizInsight-AI-env python=3.10 -y
-  conda activate BizInsight-AI-env
-  ```
+# Windows
+venv\Scripts\activate
+
+# macOS / Linux
+source venv/bin/activate
+```
+
+**Using conda:**
+```bash
+conda create --name bizinsight python=3.10 -y
+conda activate bizinsight
+```
 
 ### 3. Install Dependencies
-Once your virtual environment is active, install the required packages:
+
 ```bash
 pip install -r requirements.txt
 ```
 
 ### 4. Set Up Environment Variables
 
-1. Create a free account at [OpenRouter](https://openrouter.ai/) and get your API key.
-
+1. Get a free API key from [OpenRouter](https://openrouter.ai/)
 2. Copy the example env file:
-   - **macOS / Linux:**
-```bash
-     cp .env.example .env
-```
-   - **Windows:**
-```bash
-     copy .env.example .env
-```
+   ```bash
+   # macOS / Linux
+   cp .env.example .env
 
-3. Open the `.env` file and add your API key:
-```
+   # Windows
+   copy .env.example .env
+   ```
+3. Add your key to `.env`:
+   ```
    OPENROUTER_API_KEY=your_api_key_here
-```
+   ```
 
-> ⚠️ Never share or commit your `.env` file. It is already listed in `.gitignore`.
-
----
+> ⚠️ Never commit your `.env` file. It is already in `.gitignore`.
 
 ### 5. Run the Application
-Start the Streamlit dashboard:
+
 ```bash
 streamlit run app.py
 ```
 
----
+### 6. (Optional) Start the RAG Chatbot Backend
 
-### Requirements.txt
-streamlit
-pandas
-matplotlib
-scikit-learn
-vaderSentiment
-bertopic
-hdbscan
-umap-learn
-sentence-transformers
-python-dotenv
+In a separate terminal:
+```bash
+python run_chatbot_api.py
+```
+
+---
 
 ## 📄 CSV Format
 
-Your CSV file must contain a column named `review`.
+Your CSV file must contain a column named `review`:
+
+```csv
+review
+"The product quality is amazing, will buy again!"
+"Shipping was late and the item arrived damaged."
+"Decent for the price, nothing special."
+```
+
+---
+
+## 🧪 Testing
+
+The project includes **56 automated tests** covering the alerts module and database layer.
+
+```bash
+# Run all tests
+python -m pytest tests/ -v
+
+# Run only alerts tests
+python -m pytest tests/test_alerts.py -v
+
+# Run only database tests
+python -m pytest tests/test_database.py -v
+```
+
+### Test Coverage
+
+| Module | Tests | Areas Covered |
+|--------|-------|---------------|
+| `alerts.py` | 38 | Risk scoring, spike detection, keyword extraction, DB integration, edge cases, constants |
+| `database.py` | 18 | Table creation, CRUD operations, validation, unicode, ordering |
 
 ---
 
 ## 📈 Example Use Cases
 
-- E-commerce customer experience analysis  
-- Service quality monitoring  
-- Product feedback insights  
-- Business performance improvement  
-  
+- E-commerce customer experience monitoring
+- Service quality trend analysis
+- Product feedback insights and issue detection
+- Early warning system for customer satisfaction drops
+- Competitive analysis through review data
+
 ---
 
 ## 🏆 Why BizInsight AI?
 
-Manually analyzing customer feedback is time-consuming and error-prone.  
-BizInsight AI converts raw reviews into actionable business intelligence using AI.
+Manually analyzing customer feedback is time-consuming and error-prone. BizInsight AI converts raw reviews into **actionable business intelligence** using AI — and now, with the Trend Alert system, it **catches problems before you do**.
 
 ---
 
 ## 📌 Future Enhancements
 
-- Multi-business login system  
-- Automated report generation (PDF)   
-- Trend alert system  
+- Multi-business login system
+- Automated PDF report generation
+- Email / Slack notifications for high-risk alerts
+- Historical alert timeline and trend tracking
+- Category-level risk breakdown
 
 ---
 
-## 👨‍💻 Author
+## 👨‍💻 Contributors
 
-Built by **Prateek Singh**  
-BTech Student | AI & Software Development Enthusiast
+Built by **Prateek Singh** & **Rajarshi Saha**
+BTech Students | AI & Software Development Enthusiasts
 
 ---
 
