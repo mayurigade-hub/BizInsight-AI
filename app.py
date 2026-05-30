@@ -14,7 +14,8 @@ st.set_page_config(page_title="BizInsight AI", layout="wide")
 
 from sklearn.feature_extraction.text import CountVectorizer
 from openai import OpenAI
-from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+import nltk
+from nltk.sentiment.vader import SentimentIntensityAnalyzer
 from clustering.run_clustering import run_pipeline
 from clustering.vectorize import load_model
 
@@ -69,8 +70,15 @@ with st.sidebar:
         st.rerun()
 
 # ─── Header ───────────────────────────────────────────────────────────────────
+@st.cache_resource
+def load_vader_analyzer():
+    try:
+        nltk.data.find("sentiment/vader_lexicon.zip")
+    except LookupError:
+        nltk.download("vader_lexicon", quiet=True)
+    return SentimentIntensityAnalyzer()
 
-vader_analyzer = SentimentIntensityAnalyzer()
+vader_analyzer = load_vader_analyzer()
 
 # ─── Tabs ─────────────────────────────────────────────────────────────────────
 
@@ -97,6 +105,7 @@ def clean_text_for_sentiment(text):
 def ask_ai(question, reviews):
     """AI Assistant – uses first 40 reviews."""
     context = "\n".join(reviews[:40])
+
     prompt = f"""You are a business intelligence assistant.
 
 Customer reviews:
