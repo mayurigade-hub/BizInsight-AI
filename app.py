@@ -138,7 +138,7 @@ with tabs[2]:
                     st.error(f"Cannot connect to RAG API: {e}")
                     st.info("Start FastAPI server: python run_chatbot_api.py")
 
-        st.success(f"✅ Successfully added {len(df)} feedback entries!")
+            st.success(f"✅ Successfully added {len(original_reviews)} feedback entries!")
 # ================= FETCH DATA =================
 data = fetch_feedback()
 
@@ -184,23 +184,48 @@ if data:
         st.subheader("🔍 Smart Complaint Clustering")
         embedding_model = load_model()
 
-        if st.button("Find Complaint Clusters"):
-            with st.spinner("Clustering negative reviews..."):
-                negative_reviews = df[df["sentiment"] < 0]["cleaned_review"].tolist()
-                if len(negative_reviews) < 10:
-                    st.warning(f"Only {len(negative_reviews)} negative reviews. Need at least 10.")
+        cluster_mode = st.radio(
+            "Cluster by sentiment:",
+            options=["Negative", "Positive"],
+            horizontal=True,
+            help="Negative: surfaces complaint themes. Positive: surfaces what customers love."
+        )
+
+        button_label = "Find Complaint Clusters" if cluster_mode == "Negative" else "Find Positive Themes"
+
+        if st.button(button_label):
+            if cluster_mode == "Negative":
+                selected_reviews = df[df["sentiment"] < 0]["cleaned_review"].tolist()
+                spinner_text = "Clustering negative reviews..."
+                empty_warning = f"Only {len(selected_reviews)} negative reviews. Need at least 10."
+                success_label = "complaints"
+                icon = "📌"
+                mode_arg = "negative"
+            else:
+                selected_reviews = df[df["sentiment"] > 0]["cleaned_review"].tolist()
+                spinner_text = "Clustering positive reviews..."
+                empty_warning = f"Only {len(selected_reviews)} positive reviews. Need at least 10."
+                success_label = "positive themes"
+                icon = "⭐"
+                mode_arg = "positive"
+
+            with st.spinner(spinner_text):
+                if len(selected_reviews) < 10:
+                    st.warning(empty_warning)
                 else:
+                    dynamic_min_topic_size = max(3, len(selected_reviews) // 5)
                     result = run_pipeline(
-                        negative_reviews,
+                        selected_reviews,
                         embedding_model,
-                        min_topic_size=25,
+                        min_topic_size=dynamic_min_topic_size,
                         similarity_threshold=0.4,
-                        verbose=True
+                        verbose=True,
+                        mode=mode_arg
                     )
                     if result["success"]:
-                        st.success(f"✅ Found {result['n_clusters']} clusters from {result['total_negative_reviews']} reviews")
+                        st.success(f"✅ Found {result['n_clusters']} {success_label} from {result['total_negative_reviews']} reviews")
                         for cluster in result["clusters"]:
-                            with st.expander(f"📌 {cluster['name']} ({cluster['percentage']:.1f}%) - {cluster['count']} reviews"):
+                            with st.expander(f"{icon} {cluster['name']} ({cluster['percentage']:.1f}%) - {cluster['count']} reviews"):
                                 st.write("**Example reviews:**")
                                 for ex in cluster.get('example_reviews', [])[:3]:
                                     st.write(f"- \"{ex}\"")
