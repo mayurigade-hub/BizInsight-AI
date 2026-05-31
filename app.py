@@ -223,7 +223,7 @@ if data:
                         mode=mode_arg
                     )
                     if result["success"]:
-                        st.success(f"✅ Found {result['n_clusters']} {success_label} from {result['total_negative_reviews']} reviews")
+                        st.success(f"✅ Found {result['n_clusters']} {success_label} from {result['total_reviews']} reviews")
                         for cluster in result["clusters"]:
                             with st.expander(f"{icon} {cluster['name']} ({cluster['percentage']:.1f}%) - {cluster['count']} reviews"):
                                 st.write("**Example reviews:**")

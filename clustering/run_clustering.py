@@ -129,12 +129,12 @@ def map_cluster_to_category(
             embeddings[cat] = embedding_model.encode([sentence])[0]
         setattr(map_cluster_to_category,cache_key,embeddings)
 
-    chached_embeddings = getattr(map_cluster_to_category,cache_key)
+    cached_embeddings = getattr(map_cluster_to_category,cache_key)
     
     # Find the category with highest similarity
     best_cat = None
     best_sim = -1.0
-    for cat, cat_emb in chached_embeddings.items():
+    for cat, cat_emb in cached_embeddings.items():
         sim = cosine_similarity([cluster_embedding], [cat_emb])[0][0]
         if sim > best_sim:
             best_sim = sim
@@ -218,7 +218,7 @@ def run_pipeline(
     vectorizer_model = CountVectorizer(
         stop_words="english",
         ngram_range=(1, 2), # unigrams and bigrams for better topic representation, can be tuned based on dataset size and diversity
-        max_df=1.0, # ignore words that appear in more than 80% of documents to focus on more distinctive terms, can be tuned based on dataset size and diversity
+        max_df=1.0, # keep all words regardless of frequency for small datasets, can be tuned based on dataset size and diversity
         min_df=1 # include words that appear in at least 1 document, can be increased for larger datasets to reduce noise
     )
     
@@ -284,7 +284,15 @@ def run_pipeline(
         if mapped_cat:
             cluster_name = mapped_cat if mode == "positive" else f"{mapped_cat} Issues"
         else:
-            cluster_name = original_name
+            if mode == "positive":
+                # Strip negative suffixes appended by make_unique_business_name
+                base_name = original_name
+                for suffix in [" Issues", " Error", " Delay"]:
+                    if base_name.endswith(suffix):
+                        base_name = base_name[:-len(suffix)]
+                cluster_name = f"{base_name} Praise"
+            else:
+                cluster_name = original_name
         
         # Add cluster info to the list
         clusters.append({
@@ -324,7 +332,7 @@ def run_pipeline(
     return {
         "success": True,
         "message": f"Found {n_topics} {'positive' if mode == 'positive' else 'complaint'} topics with {noise_percentage:.1f}% noise",
-        "total_negative_reviews": total_reviews,
+        "total_reviews": total_reviews,
         "n_clusters": n_topics,
         "n_topics": n_topics,
         "labels": topics,
