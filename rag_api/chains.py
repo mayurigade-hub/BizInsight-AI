@@ -5,6 +5,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
 from langchain_classic.retrievers.multi_query import MultiQueryRetriever
 import time
+import threading
 from langchain_classic.retrievers import ContextualCompressionRetriever
 from langchain_classic.retrievers.document_compressors import CrossEncoderReranker
 from langchain_community.cross_encoders import HuggingFaceCrossEncoder
@@ -57,6 +58,7 @@ class RAGChainManager:
         self._conv_chains = {}
         self._chain_last_access = {}
         self._session_timeout = 30 * 60  # 30 minutes
+        self._lock = threading.Lock()
 
         # --- INITIALIZE THE RE-RANKER MODEL (Done once on startup) ---
         print("🧠 Loading Re-Ranker Model... (This may take a moment on first run)")
@@ -123,8 +125,10 @@ class RAGChainManager:
                 verbose=False
             )
             self._conv_chains[chain_key] = chain # Store the chain in the dictionary with its unique key for future retrieval
-        self._chain_last_access[chain_key] = time.time()
-        return self._conv_chains[chain_key] # Return the conversational chain for this session.
+        with self._lock:
+            self._chain_last_access[chain_key] = time.time()
+            return self._conv_chains[chain_key]
+
     def _cleanup_expired_chains(self):
         """Remove inactive conversational chains."""
         now = time.time()
@@ -135,6 +139,7 @@ class RAGChainManager:
             if now - last_access > self._session_timeout
         ]
 
-        for key in expired:
-            self._conv_chains.pop(key, None)
-            self._chain_last_access.pop(key, None)
+        with self._lock:
+            for key in expired:
+                self._conv_chains.pop(key, None)
+                self._chain_last_access.pop(key, None)
