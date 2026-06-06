@@ -38,16 +38,18 @@ def validate_password_strength(password):
         return False, "Password must contain at least one lowercase letter."
     if not re.search(r"\d", password):
         return False, "Password must contain at least one digit."
-    if not re.search(r"[@#\$%&\*!]", password):
+    if not re.search(r"[@#$%&*!]", password):
         return False, "Password must contain at least one special character (e.g., @, #, $, %, &, *, !)."
     return True, None
 
 
 def register(username, email, password, confirm_password):
-    if not username.strip():
+    username = username.strip()
+    email = email.strip()
+    if not username:
         return False, "Username cannot be empty."
 
-    if not email.strip():
+    if not email:
         return False, "Email address cannot be empty."
 
     email_pattern = r"^[^@]+@[^@]+\.[^@]+$"
@@ -181,8 +183,12 @@ def show_setup_wizard():
         st.markdown("<br>", unsafe_allow_html=True)
 
         if st.button("Create Admin Account", use_container_width=True, type="primary"):
-            if not username or not email or not password or not confirm:
+            username_clean = username.strip()
+            email_clean = email.strip()
+            if not username_clean or not email_clean or not password or not confirm:
                 st.error("Please fill in all fields.")
+            elif not re.match(r"^[^@]+@[^@]+\.[^@]+$", email_clean):
+                st.error("Please enter a valid email address.")
             else:
                 # Validates complexity, then confirms matching string arrays
                 is_strong, error_msg = validate_password_strength(password)
@@ -191,7 +197,7 @@ def show_setup_wizard():
                 elif password != confirm:
                     st.error("Passwords do not match.")
                 else:
-                    success = create_user(username, email, password, role="admin")
+                    success = create_user(username_clean, email_clean, password, role="admin")
                     if success:
                         st.success("Admin account created. You can now log in.")
                         st.rerun()
