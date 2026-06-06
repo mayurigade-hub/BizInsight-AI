@@ -1,6 +1,6 @@
 import logging
 from langchain_classic.chains import RetrievalQA, ConversationalRetrievalChain
-from langchain_classic.memory import ConversationBufferMemory
+from langchain_classic.memory import ConversationBufferWindowMemory
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
 from langchain_classic.retrievers.multi_query import MultiQueryRetriever
@@ -92,11 +92,12 @@ class RAGChainManager:
         
         # If a chain for this session and filter doesn't exist, we create it. This allows us to maintain separate conversation histories and retrieval contexts for different users or different types of queries (e.g., positive vs negative sentiment).
         if chain_key not in self._conv_chains:
-            # We set up a ConversationBufferMemory to keep track of the chat history for this session
-            memory = ConversationBufferMemory(
+            # We use a bounded conversation memory window to retain recent chat history without allowing unbounded growth.
+            memory = ConversationBufferWindowMemory(
                 memory_key="chat_history",
                 return_messages=True,
-                output_key="answer"
+                output_key="answer",
+                k=RAGConfig.CONVERSATION_MEMORY_WINDOW
             )
             
             # Layer 1: Base Retriever

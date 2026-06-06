@@ -13,7 +13,10 @@ class RAGConfig:
     
     # Retrieval
     TOP_K = 15
-    SEARCH_TYPE = "similarity" 
+    SEARCH_TYPE = "similarity"
+
+    # Conversational memory
+    CONVERSATION_MEMORY_WINDOW = 10
     
     # LLM configuration
     LLM_MODEL = "google/gemini-2.5-flash"
