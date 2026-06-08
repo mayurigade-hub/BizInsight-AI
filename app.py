@@ -216,22 +216,17 @@ with tabs[2]:
         if st.session_state.get("last_upload_hash") != file_hash:
             df = None
             encodings_to_try = ['utf-8', 'utf-16', 'latin1', 'cp1252']
-            
+
             for encoding in encodings_to_try:
                 try:
-                    uploaded_file.seek(0)  # Always reset file pointer before reading
-                    temp_df = pd.read_csv(uploaded_file, encoding=encoding)
-                    
-                    # Check if 'review' is actually a valid column in this encoding
-                    if "review" in temp_df.columns:
-                        df = temp_df
-                        break
-                except (UnicodeDecodeError, Exception):
+                    uploaded_file.seek(0) # Always reset file pointer before reading
+                    df = pd.read_csv(uploaded_file, encoding=encoding)
+                    break
+                except (UnicodeDecodeError, pd.errors.ParserError):
                     continue
             
             if df is None:
                 st.error("Unable to read CSV file. Please ensure it is not corrupted and uses a standard encoding such as UTF-8 or Latin-1.")
-                st.session_state["last_upload_hash"] = file_hash
             else:
                 st.dataframe(df, use_container_width=True)
 
