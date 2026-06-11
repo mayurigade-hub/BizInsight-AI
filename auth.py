@@ -24,21 +24,41 @@ def login(username, password):
         return None, "Incorrect password."
     return user, None
 
-def register(username, email, password, confirm_password):
 
-    if not username.strip():
+# ─── Password Complexity Validator ────────────────────────────────────────────
+def validate_password_strength(password):
+    """
+    Validates password strength requirements for new account registrations.
+    """
+    if len(password) < 8:
+        return False, "Password must be at least 8 characters long."
+    if not re.search(r"[A-Z]", password):
+        return False, "Password must contain at least one uppercase letter."
+    if not re.search(r"[a-z]", password):
+        return False, "Password must contain at least one lowercase letter."
+    if not re.search(r"\d", password):
+        return False, "Password must contain at least one digit."
+    if not re.search(r"[@#$%&*!]", password):
+        return False, "Password must contain at least one special character (e.g., @, #, $, %, &, *, !)."
+    return True, None
+
+
+def register(username, email, password, confirm_password):
+    username = username.strip()
+    email = email.strip()
+    if not username:
         return False, "Username cannot be empty."
 
-    if not email.strip():
+    if not email:
         return False, "Email address cannot be empty."
 
     email_pattern = r"^[^@]+@[^@]+\.[^@]+$"
-
     if not re.match(email_pattern, email):
         return False, "Please enter a valid email address."
 
-    if len(password) < 6:
-        return False, "Password must be at least 6 characters."
+    is_strong, error_msg = validate_password_strength(password)
+    if not is_strong:
+        return False, error_msg
 
     if password != confirm_password:
         return False, "Passwords do not match."
@@ -47,10 +67,8 @@ def register(username, email, password, confirm_password):
 
     if result == "USERNAME_EXISTS":
         return False, "Username already exists."
-
     if result == "EMAIL_EXISTS":
         return False, "Email already registered."
-
     if not result:
         return False, "Registration failed."
 
@@ -90,7 +108,6 @@ def show_auth_page():
                         st.rerun()
 
         with tab_register:
-
             new_username = st.text_input(
                 "Username",
                 placeholder="Choose a username",
@@ -106,8 +123,9 @@ def show_auth_page():
             new_password = st.text_input(
                 "Password",
                 type="password",
-                placeholder="Minimum 6 characters",
-                key="reg_password"
+                placeholder="Min. 8 characters",
+                key="reg_password",
+                help="Requirements:\n- At least 8 characters\n- One uppercase & one lowercase letter\n- One number\n- One special character (@, #, $, %, &, *, !)"
             )
 
             confirm_password = st.text_input(
@@ -120,20 +138,22 @@ def show_auth_page():
             st.markdown("<br>", unsafe_allow_html=True)
 
             if st.button("Create Account", use_container_width=True, type="primary"):
-
-                success, error = register(
-                    new_username,
-                    email,
-                    new_password,
-                    confirm_password
-                )
-
-                if error:
-                    st.error(error)
+                if not new_username or not email or not new_password or not confirm_password:
+                    st.error("Please fill in all fields.")
                 else:
-                    st.success("Account created successfully! Please log in.")
-                    st.session_state["login_username"] = new_username
-                    st.rerun()
+                    success, error = register(
+                        new_username,
+                        email,
+                        new_password,
+                        confirm_password
+                    )
+
+                    if error:
+                        st.error(error)
+                    else:
+                        st.success("Account created successfully! Please log in.")
+                        st.session_state["login_username"] = new_username
+                        st.rerun()
 
 
 def show_setup_wizard():
@@ -151,23 +171,35 @@ def show_setup_wizard():
             "Admin Username", placeholder="Choose an admin username")
         email = st.text_input(
             "Admin Email", placeholder="Enter an admin email")
+        
         password = st.text_input(
-            "Password", type="password", placeholder="Min. 6 characters")
+            "Password", 
+            type="password", 
+            placeholder="Min. 8 characters",
+            help="Requirements:\n- At least 8 characters\n- One uppercase & one lowercase letter\n- One number\n- One special character (@, #, $, %, &, *, !)"
+        )
         confirm = st.text_input(
             "Confirm Password", type="password", placeholder="Repeat your password")
         st.markdown("<br>", unsafe_allow_html=True)
 
         if st.button("Create Admin Account", use_container_width=True, type="primary"):
-            if not username or not email or not password or not confirm:
+            username_clean = username.strip()
+            email_clean = email.strip()
+            if not username_clean or not email_clean or not password or not confirm:
                 st.error("Please fill in all fields.")
-            elif len(password) < 6:
-                st.error("Password must be at least 6 characters.")
-            elif password != confirm:
-                st.error("Passwords do not match.")
+            elif not re.match(r"^[^@]+@[^@]+\.[^@]+$", email_clean):
+                st.error("Please enter a valid email address.")
             else:
-                success = create_user(username, email, password, role="admin")
-                if success:
-                    st.success("Admin account created. You can now log in.")
-                    st.rerun()
+                # Validates complexity, then confirms matching string arrays
+                is_strong, error_msg = validate_password_strength(password)
+                if not is_strong:
+                    st.error(error_msg)
+                elif password != confirm:
+                    st.error("Passwords do not match.")
                 else:
-                    st.error("Something went wrong. Try again.")
+                    success = create_user(username_clean, email_clean, password, role="admin")
+                    if success:
+                        st.success("Admin account created. You can now log in.")
+                        st.rerun()
+                    else:
+                        st.error("Something went wrong. Try again.")
