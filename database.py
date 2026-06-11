@@ -37,6 +37,7 @@ def initialize_database():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             review TEXT NOT NULL,
             sentiment REAL NOT NULL,
+            created_at TEXT
             user_id INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id)
@@ -52,6 +53,11 @@ def initialize_database():
         conn.commit()
 
 
+def insert_feedback(review, sentiment, created_at):
+
+    # Handle None / NaN / empty reviews safely
+    if review is None or str(review).strip() == "":
+        raise ValueError("Review cannot be empty.")
 def no_users_exist():
     with get_connection() as conn:
         cursor = conn.cursor()
@@ -95,6 +101,10 @@ def get_user_by_username(username):
 
             cursor.execute(
                 """
+                INSERT INTO feedback (review, sentiment, created_at)
+                VALUES (?, ?, ?)
+                """,
+                (str(review), sentiment, created_at)
                 SELECT
                     id,
                     username,

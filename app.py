@@ -17,6 +17,13 @@ st.set_page_config(page_title="BizInsight AI", layout="wide")
 
 from sklearn.feature_extraction.text import CountVectorizer
 from textblob import TextBlob
+from database import (
+    insert_feedback,
+    fetch_feedback,
+    clear_data,
+    initialize_database
+)
+initialize_database()
 from database import insert_feedback, fetch_feedback, clear_data
 import smtplib
 from email.mime.text import MIMEText
@@ -214,6 +221,28 @@ with tabs[2]:
     if uploaded_file:
         file_hash = hashlib.md5(uploaded_file.getvalue()).hexdigest()
 
+        df = pd.read_csv(uploaded_file)
+        if "date" not in df.columns:
+            st.error("CSV must contain a 'date' column.")
+            st.stop()
+        df["date"] = pd.to_datetime(df["date"])
+        st.dataframe(df, width='stretch')
+        if "review" not in df.columns:
+            st.error("CSV must contain a 'review' column.")
+
+        else:
+
+            df = df.dropna(subset=["review"])
+            df["review"] = df["review"].astype(str).str.strip()
+            df = df[df["review"] != ""]
+
+            if df.empty:
+
+                st.warning("No valid reviews found after cleaning.")
+
+            else:
+                with st.spinner("Analyzing sentiment..."):
+                    df["sentiment"] = df["review"].apply(get_sentiment)
         if st.session_state.get("last_upload_hash") != file_hash:
             df = None
             encodings_to_try = ['utf-8', 'utf-16', 'latin1', 'cp1252']
@@ -231,6 +260,13 @@ with tabs[2]:
             else:
                 st.dataframe(df, use_container_width=True)
 
+                for _, row in df.iterrows():
+                    insert_feedback(
+                        row["review"],
+                        row["sentiment"],
+                        row["date"].strftime("%Y-%m-%d")
+                    )
+                    inserted_count += 1
                 if "review" not in df.columns:
                     st.error("CSV must contain a 'review' column.")
                 else:
@@ -267,6 +303,7 @@ data = fetch_feedback(user_id=current_user["id"])
 
 if data:
     df = pd.DataFrame(data, columns=["review", "sentiment", "date"])
+
     df["date"] = pd.to_datetime(df["date"])
 
     positive = (df["sentiment"] > 0).sum()
@@ -278,8 +315,54 @@ if data:
     negative_percent = round((negative / total_reviews) * 100, 2)
     neutral_percent  = round((neutral  / total_reviews) * 100, 2)
 
+    # Existing sentiment trend
     trend = df.groupby(df["date"].dt.date)["sentiment"].mean()
 
+    # =========================================
+    # NEGATIVE REVIEW SPIKE DETECTION
+    # =========================================
+
+    # Only negative reviews
+    negative_df = df[df["sentiment"] < 0]
+
+    # Daily negative review counts
+    negative_trend = (
+        negative_df
+        .groupby(negative_df["date"].dt.date)
+        .size()
+    )
+
+    # Rolling statistics
+    rolling_mean = negative_trend.rolling(window=3).mean()
+
+    rolling_std = negative_trend.rolling(window=3).std()
+
+    # Threshold-based anomaly detection
+    
+    anomalies = negative_trend[
+        negative_trend > (rolling_mean + rolling_std)
+    ]
+
+    st.write("Negative Trend")
+    st.write(negative_trend)
+    
+    st.write("Rolling Mean")
+    st.write(rolling_mean)
+    
+    st.write("Rolling Std")
+    st.write(rolling_std)
+    
+    st.write("Detected Anomalies")
+    st.write(anomalies)
+
+    # =========================================
+
+    reviews = df["review"].dropna()
+
+    if reviews.empty or (
+        reviews.apply(lambda x: isinstance(x, str)).all() and
+        reviews.str.strip().eq("").all()
+    ):
     reviews = df["review"].dropna()
     if reviews.empty or (reviews.apply(lambda x: isinstance(x, str)).all() and reviews.str.strip().eq("").all()):
         keywords = []
@@ -328,6 +411,16 @@ if data:
 
     with tabs[0]:
         st.subheader("📈 Business Health Overview")
+
+        if not anomalies.empty:
+            st.error(
+                f"⚠️ {len(anomalies)} negative sentiment spike(s) detected!"
+            )
+
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Total Reviews", len(df))
+        c2.metric("Positive", positive)
+        c3.metric("Negative", negative)
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Total Reviews", total_reviews)
         c2.metric("Positive %", f"{positive_percent}%")
@@ -392,12 +485,72 @@ if data:
             st.subheader("Customer Satisfaction Trend")
             st.area_chart(trend)
         with col2:
+
+            fig3, ax3 = plt.subplots(figsize=(3.2, 3.2))
+
             fig3, ax3 = plt.subplots(figsize=(3.2, 3.2))
             ax3.pie(
                 [positive, negative, neutral],
                 labels=["Positive", "Negative", "Neutral"],
                 autopct="%1.1f%%"
             )
+
+            st.pyplot(fig3)
+            plt.close(fig3)
+
+        with col1:
+            st.subheader("Negative Review Spike Detection")
+            
+            fig2, ax2 = plt.subplots(figsize=(10,4))
+            
+            # Main negative trend line
+            ax2.plot(
+                negative_trend.index,
+                negative_trend.values,
+                marker="o"
+            )
+            
+            # Highlight anomalies
+            ax2.scatter(
+                anomalies.index,
+                anomalies.values,
+                color="red",
+                s=220,
+                marker="X",
+                label="Anomaly"
+            )
+            
+            ax2.legend()
+            
+            ax2.set_xlabel("Date")
+            ax2.set_ylabel("Negative Reviews")
+            ax2.set_title("Anomaly Detection in Negative Reviews")
+            
+            st.pyplot(fig2)
+
+        with col2:
+            st.pyplot(fig)
+            plt.close(fig)  # Fix: prevents matplotlib memory leak
+            st.markdown("---")
+
+        # Histogram
+
+        st.subheader("📊 Sentiment Score Distribution")
+
+        col_small, _ = st.columns([1.5, 4])
+
+        with col_small:
+
+            fig2, ax2 = plt.subplots(figsize=(2.8, 2.1))
+
+            ax2.hist(df["sentiment"], bins=10)
+
+            ax2.set_xlabel("Score", fontsize=8)
+            ax2.set_ylabel("Freq", fontsize=8)
+
+            ax2.tick_params(axis='both', labelsize=7)
+
+            st.pyplot(fig2)
             st.pyplot(fig3)
             plt.close(fig3)
 
