@@ -2,11 +2,17 @@
 __pycache__/
 *.pyc
 
+# Virtual Environment
+venv/
+
 # Database
 *.db
 
 # Environment variables
 .env
+
+# Streamlit secrets
+.streamlit/secrets.toml
 
 # VS Code
 .vscode/
@@ -15,9 +21,9 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
-venv/
-
+# Models
 models/finetuned_complaint_model_final/
 
+# Vector DB
 chroma_db/
-.streamlit/secrets.toml
+
