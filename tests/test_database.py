@@ -22,7 +22,7 @@ class TestDatabaseUserLookup(unittest.TestCase):
 
     def test_get_user_by_username_returns_user(self):
         result = database.create_user("testuser", "test@example.com", "Password123!")
-        self.assertTrue(result)
+        self.assertIs(result, True)
 
         user = database.get_user_by_username("testuser")
         self.assertIsNotNone(user)
