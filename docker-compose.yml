@@ -1,0 +1,21 @@
+services:
+  bizinsight-ai:
+    build: .
+    container_name: bizinsight-ai
+    ports:
+      - "8501:8501"
+    # Loads OPENROUTER_API_KEY (and any other secrets) from .env in the
+    # project root. The app raises a clear error on startup if this key
+    # is missing, so the .env file is required, not optional.
+    env_file:
+      - path: ./.env
+        required: true
+    volumes:
+      # database.py connects to sqlite3.connect("bizinsight.db"), a path
+      # relative to the app's working directory (/app/bizinsight.db inside
+      # the container). Bind-mounting that exact file to a file on the host
+      # persists all feedback data across `docker compose down`/`up` and
+      # image rebuilds, with zero changes to the application code.
+      - ./bizinsight.db:/app/bizinsight.db
+    restart: unless-stopped
+    
