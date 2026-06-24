@@ -192,10 +192,13 @@ with tabs[2]:
                         status_text = st.empty()
 
                         sentiments = []
+                        update_interval = max(1, total // 100)  # Update every 1% or on every item for small totals
                         for i, review in enumerate(df["review"]):
                             sentiments.append(get_sentiment(review))
-                            progress_bar.progress((i + 1) / total)
-                            status_text.text(f"Processing review {i + 1} of {total}...")
+                            # Update UI periodically to avoid performance issues with large files
+                            if (i + 1) % update_interval == 0 or (i + 1) == total:
+                                progress_bar.progress((i + 1) / total)
+                                status_text.text(f"Processing review {i + 1} of {total}...")
 
                         df["sentiment"] = sentiments
                         reviews_data = list(zip(df["review"], df["sentiment"]))
