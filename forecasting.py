@@ -26,7 +26,7 @@ def prepare_daily_sentiment(df):
         synthetic_history = True
         last_sentiment = daily["sentiment"].iloc[0]
 
-        demo_dates = pd.date_range(end=pd.Timestamp.today(), periods=30)
+        demo_dates = pd.date_range(end=daily["date"].iloc[0], periods=30)
 
         demo_sentiments = [
             np.clip(last_sentiment + np.random.uniform(-0.15, 0.15), -1, 1)
