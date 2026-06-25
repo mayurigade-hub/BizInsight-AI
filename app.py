@@ -451,6 +451,32 @@ with tabs[2]:
             else:
                 st.dataframe(df, use_container_width=True)
 
+                if df.empty:
+                    st.warning("No valid reviews found after cleaning. Nothing to process.")
+
+                else:
+                    with st.spinner("Analyzing reviews, please wait..."):
+                        total = len(df)
+                        progress_bar = st.progress(0)
+                        status_text = st.empty()
+
+                        sentiments = []
+                        update_interval = max(1, total // 100)  # Update every 1% or on every item for small totals
+                        for i, review in enumerate(df["review"]):
+                            sentiments.append(get_sentiment(review))
+                            # Update UI periodically to avoid performance issues with large files
+                            if (i + 1) % update_interval == 0 or (i + 1) == total:
+                                progress_bar.progress((i + 1) / total)
+                                status_text.text(f"Processing review {i + 1} of {total}...")
+
+                        df["sentiment"] = sentiments
+                        reviews_data = list(zip(df["review"], df["sentiment"]))
+                        insert_feedback_bulk(reviews_data, user_id=current_user["id"])
+
+                    progress_bar.empty()
+                    status_text.empty()
+                    st.session_state["last_upload_hash"] = file_hash
+                    st.success(f"✅ {total} reviews analyzed and saved successfully!")
                 for _, row in df.iterrows():
                     insert_feedback(
                         row["review"],
@@ -949,6 +975,22 @@ if not df.empty:
     
         st.dataframe(keyword_df, use_container_width=True)
 
+    # ─── AI Assistant Tab ─────────────────────────────────────────────────────
+
+    with tabs[1]:
+        st.subheader("🤖 AI Business Assistant")
+        question = st.text_area("Ask a business insights question",
+                                placeholder="Example: What are the major customer complaints?")
+        if st.button("Generate AI Insight"):
+            if client is None:
+                st.warning("AI features unavailable because API key is missing.")
+            elif question.strip() == "":
+                st.warning("Please enter a question.")
+            else:
+                with st.spinner("Analyzing..."):
+                    answer = ask_ai(question, df["review"].tolist())
+                st.success("✅ AI Insight Generated")
+                st.write(answer)
 
         st.dataframe(keyword_df, use_container_width=True)
 
