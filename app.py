@@ -1,8 +1,6 @@
 import os
-
 from dotenv import load_dotenv
 load_dotenv()
-
 import logging
 import hashlib
 import uuid
@@ -10,29 +8,16 @@ import re
 import requests
 import pandas as pd
 import matplotlib.pyplot as plt
-from dotenv import load_dotenv
 from forecasting import forecast_sentiment
-
 from email_alerts import send_negative_alert
 from aspect_extractor import extract_aspects
-
-load_dotenv()
 logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger(__name__)
 
-
 import streamlit as st
 st.set_page_config(page_title="BizInsight AI", layout="wide")
-import pandas as pd
-import matplotlib.pyplot as plt
 from sklearn.feature_extraction.text import CountVectorizer
-
 from textblob import TextBlob
-from database import insert_feedback, fetch_feedback, clear_data
-from openai import OpenAI
-
-from database import insert_feedback, fetch_feedback, clear_data
-
 from openai import (
     OpenAI,
     AuthenticationError,
@@ -41,24 +26,11 @@ from openai import (
     APIConnectionError,
     APIError,
 )
-
 from sentiment import analyze
-
 # ---------- Chimera AI Client ----------
-from textblob import TextBlob
-from database import (
-    insert_feedback,
-    fetch_feedback,
-    clear_data,
-    initialize_database
-)
-initialize_database()
-from database import insert_feedback, fetch_feedback, clear_data
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-
-from openai import OpenAI
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Image
 from reportlab.lib.styles import getSampleStyleSheet
 from datetime import datetime
@@ -67,20 +39,18 @@ import nltk
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 from clustering.run_clustering import run_pipeline
 from clustering.vectorize import load_model
-
 from database import (
-    get_workspace_feedback,
     initialize_database,
-    insert_feedback,
     insert_feedback_bulk,
     fetch_feedback,
     fetch_all_feedback,
     fetch_all_users,
+    get_workspace_feedback,
     clear_data,
-    delete_user
+    delete_user,
+    no_users_exist
 )
 from auth import is_logged_in, get_current_user, logout, show_auth_page, show_setup_wizard
-from database import no_users_exist
 
 
 # ---------- Chimera AI Client ----------
@@ -109,7 +79,6 @@ tabs = st.tabs(["📊 Dashboard", "🤖 AI Assistant", "📂 Data Upload", "⚙ 
 
 
 # ================= FUNCTIONS =================
-initialize_database()
 
 if no_users_exist():
     show_setup_wizard()
@@ -135,12 +104,11 @@ def get_sentiment(text):
 
 
 def ask_ai(question, reviews:list):
-    """Ask the configured OpenAI-compatible client for an answer using provided reviews."""
     if client is None:
         return "AI features are disabled because API key is missing."
 
     # Build a concise prompt focusing on the reviews
-    reviews_text = "\n".join([str(r) for r in reviews[:200]])  # limit size
+    reviews_text = "\n".join(map(str, reviews[:200]))  # limit size
     messages = [
         {"role": "system", "content": "You are a concise business insights assistant. Answer only using the provided reviews."},
         {"role": "user", "content": f"Customer Reviews:\n{reviews_text}\n\nQuestion:\n{question}\n\nProvide concise, actionable insights."}
@@ -163,9 +131,6 @@ def ask_ai(question, reviews:list):
     except Exception as e:
         logger.error("AI request failed: %s", e)
         return f"AI request failed: {e}"
-
-
-# ================= AI ASSISTANT =================
 
 # ================= AI ASSISTANT =================
 
@@ -201,7 +166,7 @@ with tabs[1]:
 
     if question:
         with st.chat_message("user"):
-         st.write(question)
+            st.write(question)
 
         # Save user message
         st.session_state.messages.append(
@@ -231,22 +196,17 @@ with tabs[1]:
                     columns=["review", "sentiment", "date"]
                 )
 
-                reviews_text = "\n".join(
-                    df_ai["review"].astype(str).tolist()
+                answer = ask_ai(question, df_ai["review"].astype(str).tolist())
+
+                with st.chat_message("assistant"):
+                    st.write(answer)
+
+                st.session_state.messages.append(
+                    {
+                        "role": "assistant",
+                        "content": answer
+                    }
                 )
-
-                prompt = f"""
-You are a business intelligence assistant.
-
-Customer Reviews:
-{reviews_text}
-
-Question:
-{question}
-
-Answer the question only using the customer reviews.
-Provide concise and actionable business insights.
-"""
 
 def make_pdf(df, trend, keywords):
     buffer = io.BytesIO()
@@ -299,148 +259,97 @@ with tabs[2]:
 
         file_hash = hashlib.md5(uploaded_file.read()).hexdigest()
         uploaded_file.seek(0)
-        df = pd.read_csv(uploaded_file)
 
+        df = None
+        encodings_to_try = ['utf-8', 'utf-16', 'latin1', 'cp1252']
 
-        st.dataframe(df, use_container_width=True)
+        for encoding in encodings_to_try:
+            try:
+                uploaded_file.seek(0)
+                df = pd.read_csv(uploaded_file, encoding=encoding)
+                break
+            except (UnicodeDecodeError, pd.errors.ParserError):
+                continue
 
-        if "review" not in df.columns:
-            st.error("CSV must contain a 'review' column.")
-
-
-        if "date" not in df.columns:
-            st.error("CSV must contain a 'date' column.")
-            st.stop()
-        df["date"] = pd.to_datetime(df["date"])
-        st.dataframe(df, width='stretch')
-        if "review" not in df.columns:
-            st.error("CSV must contain a 'review' column.")
-
+        if df is None:
+            st.error("Unable to read CSV file. Please ensure it is not corrupted and uses a standard encoding such as UTF-8 or Latin-1.")
         else:
+            st.dataframe(df, use_container_width=True)
+
+            missing_columns = []
+            if "review" not in df.columns:
+                missing_columns.append("review")
+            if "date" not in df.columns:
+                missing_columns.append("date")
+
+            if missing_columns:
+                for col in missing_columns:
+                    st.error(f"CSV must contain a '{col}' column.")
+                st.stop()
+
+            df["date"] = pd.to_datetime(df["date"])
+            st.dataframe(df, width='stretch')
 
             df = df.dropna(subset=["review"])
             df["review"] = df["review"].astype(str).str.strip()
             df = df[df["review"] != ""]
 
             if df.empty:
-
-                st.warning("No valid reviews found after cleaning.")
-
+                st.warning("No valid reviews found after cleaning. Nothing to process.")
             else:
-                with st.spinner("Analyzing sentiment..."):
-                    df["sentiment"] = df["review"].apply(get_sentiment)
-                    df["aspects"] = df["review"].apply(extract_aspects)
-        if st.session_state.get("last_upload_hash") != file_hash:
-            df = None
-            encodings_to_try = ['utf-8', 'utf-16', 'latin1', 'cp1252']
+                with st.spinner("Analyzing reviews, please wait..."):
+                    total = len(df)
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
 
-            for encoding in encodings_to_try:
-                try:
-                    uploaded_file.seek(0) # Always reset file pointer before reading
-                    df = pd.read_csv(uploaded_file, encoding=encoding)
-                    break
-                except (UnicodeDecodeError, pd.errors.ParserError):
-                    continue
-            
-            if df is None:
-                st.error("Unable to read CSV file. Please ensure it is not corrupted and uses a standard encoding such as UTF-8 or Latin-1.")
-            else:
-                st.dataframe(df, use_container_width=True)
+                    sentiments = []
+                    update_interval = max(1, total // 100)
+                    for i, review in enumerate(df["review"]):
+                        sentiments.append(get_sentiment(review))
+                        if (i + 1) % update_interval == 0 or (i + 1) == total:
+                            progress_bar.progress((i + 1) / total)
+                            status_text.text(f"Processing review {i + 1} of {total}...")
 
-                if df.empty:
-                    st.warning("No valid reviews found after cleaning. Nothing to process.")
+                    df["sentiment"] = sentiments
+                    reviews_data = list(zip(df["review"], df["sentiment"]))
 
-                else:
-                    with st.spinner("Analyzing reviews, please wait..."):
-                        total = len(df)
-                        progress_bar = st.progress(0)
-                        status_text = st.empty()
-
-                        sentiments = []
-                        update_interval = max(1, total // 100)  # Update every 1% or on every item for small totals
-                        for i, review in enumerate(df["review"]):
-                            sentiments.append(get_sentiment(review))
-                            # Update UI periodically to avoid performance issues with large files
-                            if (i + 1) % update_interval == 0 or (i + 1) == total:
-                                progress_bar.progress((i + 1) / total)
-                                status_text.text(f"Processing review {i + 1} of {total}...")
-
-                        df["sentiment"] = sentiments
-                        reviews_data = list(zip(df["review"], df["sentiment"]))
-                        insert_feedback_bulk(reviews_data, user_id=current_user["id"])
-
-                    progress_bar.empty()
-                    status_text.empty()
-                    st.session_state["last_upload_hash"] = file_hash
-                    st.success(f"✅ {total} reviews analyzed and saved successfully!")
-                for _, row in df.iterrows():
-                    insert_feedback(
-                        row["review"],
-                        row["sentiment"],
-                        pd.to_datetime(row["date"]).strftime("%Y-%m-%d")
-                    )
-                    inserted_count += 1
-                if "review" not in df.columns:
-                    st.error("CSV must contain a 'review' column.")
-                else:
-                    df = df.dropna(subset=["review"])
-                    df["review"] = df["review"].astype(str).str.strip()
-                    df = df[df["review"] != ""]
-
-                    if df.empty:
-                        st.warning("No valid reviews found after cleaning. Nothing to process.")
-                    else:
-                        df["sentiment"] = df["review"].apply(get_sentiment)
-                        reviews_data = list(zip(df["review"], df["sentiment"]))
+                    if st.session_state.get("last_upload_hash") != file_hash:
                         insert_feedback_bulk(reviews_data, user_id=current_user["id"])
                         st.session_state["last_upload_hash"] = file_hash
-                        st.success(f"{len(df)} feedback entries successfully added!")
-                        df["aspects"] = df["review"].apply(extract_aspects)
-                        with st.expander("Detected Aspects"):
+                        st.success(f"✅ {total} reviews analyzed and saved successfully!")
+                    else:
+                        st.success(f"✅ {total} reviews analyzed successfully!")
 
-                            preview_df = df[["review", "aspects"]].copy()
+                progress_bar.empty()
+                status_text.empty()
 
-                            st.dataframe(
-                                preview_df,
-                                use_container_width=True
-                            )
+                df["aspects"] = df["review"].apply(extract_aspects)
+                from aspect_sentiment import analyze_aspect_sentiment
+                df["aspect_sentiment"] = df["review"].apply(analyze_aspect_sentiment)
+                with st.expander("Aspect-wise Sentiment"):
 
-                        # Check for negative sentiment spike and send alert
-                        new_negative_percent = round((df[df["sentiment"] < 0].shape[0] / df.shape[0]) * 100, 2)
-                        if new_negative_percent > 30: # Threshold for alert
-                            subject = "BizInsight AI Alert: Negative Sentiment Spike Detected"
-                            body = (
-                                f"Hello,\n\nA recent data upload has shown a significant spike in negative sentiment.\n\n"
-                                f"Negative Sentiment in new batch: {new_negative_percent}%\n\n"
-                                f"Please log in to the BizInsight AI dashboard to analyze the feedback and take appropriate action.\n\n"
-                                f"Regards,\nThe BizInsight AI Team"
-                            )
-                            send_negative_alert(st.session_state.alert_email, subject, body)
+                    preview_df = df[
+                        ["review", "aspect_sentiment"]
+                    ].copy()
 
-        else:
+                    st.dataframe(
+                        preview_df,
+                        use_container_width=True
+                )
+                with st.expander("Detected Aspects"):
+                    preview_df = df[["review", "aspects"]].copy()
+                    st.dataframe(preview_df, use_container_width=True)
 
-            df = df.dropna(subset=["review"])
-
-            df["review"] = df["review"].astype(str).str.strip()
-            df = df[df["review"] != ""]
-
-
-            if df.empty:
-
-                st.warning("No valid reviews found after cleaning.")
-
-
-            else:
-
-                df["sentiment"] = df["review"].apply(get_sentiment)
-
-                inserted_count = 0
-
-                for _, row in df.iterrows():
-                    insert_feedback(row["review"], row["sentiment"])
-                    inserted_count += 1
-
-                st.success(f"{inserted_count} feedback entries successfully added!")
+                new_negative_percent = round((df[df["sentiment"] < 0].shape[0] / df.shape[0]) * 100, 2)
+                if new_negative_percent > 30:
+                    subject = "BizInsight AI Alert: Negative Sentiment Spike Detected"
+                    body = (
+                        f"Hello,\n\nA recent data upload has shown a significant spike in negative sentiment.\n\n"
+                        f"Negative Sentiment in new batch: {new_negative_percent}%\n\n"
+                        f"Please log in to the BizInsight AI dashboard to analyze the feedback and take appropriate action.\n\n"
+                        f"Regards,\nThe BizInsight AI Team"
+                    )
+                    send_negative_alert(st.session_state.alert_email, subject, body)
 
 if current_user["workspace_type"] == "corporate":
 
@@ -539,13 +448,6 @@ if not df.empty:
             keyword_counts = X.toarray().sum(axis=0)
 
 
-
-            keyword_df = pd.DataFrame({
-                "Keyword": keywords,
-                "Frequency": keyword_counts
-            })
-
-
         except ValueError as e:
 
             if "empty vocabulary" in str(e).lower():
@@ -554,11 +456,6 @@ if not df.empty:
 
             else:
                 raise
-
-    keyword_df = pd.DataFrame({
-        "Keyword": keywords,
-        "Frequency": keyword_counts
-    })
 
     # ================= DASHBOARD =================
 
@@ -603,23 +500,11 @@ if not df.empty:
 
             fig3, ax3 = plt.subplots(figsize=(3.2, 3.2))
 
-
-            fig3, ax3 = plt.subplots(figsize=(3.2, 3.2))
-
-
             ax3.pie(
                 [positive, negative, neutral],
                 labels=["Positive", "Negative", "Neutral"],
                 autopct="%1.1f%%"
             )
-
-
-            st.pyplot(fig3)
-            plt.close(fig3)
-
-            st.markdown("---")
-
-        # Histogram
 
             st.pyplot(fig3)
             plt.close(fig3)
@@ -647,10 +532,6 @@ if not df.empty:
             finally:
                 # Ensure matplotlib resources are always released
                 plt.close(fig2)
-            fig, ax = plt.subplots()
-            ax.pie([positive, negative, neutral], labels=["Positive","Negative","Neutral"], autopct="%1.1f%%")
-            st.pyplot(fig)
-            plt.close(fig)
 
         st.subheader("📊 Sentiment Distribution")
         fig2, ax2 = plt.subplots()
@@ -690,15 +571,6 @@ if not df.empty:
             
             st.pyplot(fig2)
 
-        with col2:
-            st.pyplot(fig)
-            plt.close(fig)  # Fix: prevents matplotlib memory leak
-            st.markdown("---")
-
-        # Histogram
-
-        st.subheader("📊 Sentiment Score Distribution")
-
         col_small, _ = st.columns([1.5, 4])
 
         with col_small:
@@ -713,8 +585,7 @@ if not df.empty:
             ax2.tick_params(axis='both', labelsize=7)
 
             st.pyplot(fig2)
-            st.pyplot(fig3)
-            plt.close(fig3)
+            plt.close(fig2)
 
         st.markdown("---")
         st.markdown("---")
@@ -789,9 +660,6 @@ if not df.empty:
         pdf_file = make_pdf(df, trend, list(keywords))
         st.download_button("Download PDF Report", pdf_file, file_name="report.pdf", mime="application/pdf")
 
-
-        st.subheader("📊 Sentiment Score Distribution")
-
         col_small, _ = st.columns([1.5, 4])
 
         with col_small:
@@ -860,31 +728,11 @@ if not df.empty:
     
         st.dataframe(keyword_df, use_container_width=True)
 
-    # ─── AI Assistant Tab ─────────────────────────────────────────────────────
-
-    with tabs[1]:
-        st.subheader("🤖 AI Business Assistant")
-        question = st.text_area("Ask a business insights question",
-                                placeholder="Example: What are the major customer complaints?")
-        if st.button("Generate AI Insight"):
-            if client is None:
-                st.warning("AI features unavailable because API key is missing.")
-            elif question.strip() == "":
-                st.warning("Please enter a question.")
-            else:
-                with st.spinner("Analyzing..."):
-                    answer = ask_ai(question, df["review"].tolist())
-                st.success("✅ AI Insight Generated")
-                st.write(answer)
-
-        st.dataframe(keyword_df, use_container_width=True)
 
     # ================= CONTROLS =================
 
     with tabs[3]:
 
-
-        st.subheader("⚙ System Controls")
 
         st.subheader("⚙ System Controls")
         
@@ -919,22 +767,4 @@ if not df.empty:
             if col2.button("❌ Cancel"):
                 st.session_state["confirm_clear"] = False
                 st.rerun()
-
-#else:
-#    st.info("Upload feedback to start building insights.")
-
-
-        if st.button("🗑 Clear all stored feedback"):
-
-            clear_data()
-
-            st.session_state.data_cleared = True
-            st.rerun()
-
-        st.warning("This action cannot be undone.")
-
-
-else:
-    st.info("Upload feedback to start building insights.")
-    st.info("No feedback in the system yet.")
 
