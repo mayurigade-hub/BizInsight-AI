@@ -175,7 +175,7 @@ def generate_report_pdf(df, trend, keywords):
     content = []
 
     content.append(Paragraph("BizInsight AI Report", styles["Title"]))
-    content.append(Paragraph("Generated: " + str(datetime.now().strftime("%Y-%m-%d %H:%M")), styles["Normal"]))
+    content.append(Paragraph("Generated: " + get_report_timestamp(), styles["Normal"]))
     content.append(Paragraph("Total Reviews: " + str(len(df)), styles["Normal"]))
     content.append(Paragraph("Positive: " + str((df["sentiment"] > 0).sum()), styles["Normal"]))
     content.append(Paragraph("Negative: " + str((df["sentiment"] < 0).sum()), styles["Normal"]))
