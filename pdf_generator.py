@@ -102,9 +102,10 @@ def create_pdf(total, positive, negative, chart_path):
 
     # Summary
     summary = generate_summary(
-    positive,
-    negative
+        positive,
+        negative
     )
+    pdf.multi_cell(0, 10, f"Summary: {summary}")
     
 
     if os.path.exists(chart_path):
