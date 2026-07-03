@@ -95,7 +95,7 @@ Session‑based memory (ConversationBufferMemory) keeps the chat history. The us
    ```bash
    python run_chatbot_api.py
 
-## 🏗️ Architecture & Data Flow
+# 🏗️ Architecture & Data Flow
 
 BizInsight AI uses a modular **Retrieval-Augmented Generation (RAG)** architecture that combines **Streamlit**, **FastAPI**, **SQLite**, **ChromaDB**, **Sentence Transformers**, and **Google Gemini (via OpenRouter)** to provide grounded answers based only on uploaded customer reviews.
 
@@ -130,7 +130,8 @@ flowchart LR
 
     A --> G
     G --> H
-    H --> I
+    H --> J
+    J --> I
     F --> I
     I --> J
     J --> K
@@ -138,10 +139,9 @@ flowchart LR
     L --> M
     M --> A
 ```
-
 ---
 
-# Architecture Components
+## Architecture Components
 
 ## 1. Streamlit Dashboard
 
@@ -371,7 +371,7 @@ This enables follow-up questions without requiring users to repeat previous cont
 
 ---
 
-# Data Flow
+## Data Flow
 
 The following diagram illustrates how customer reviews move through the RAG pipeline.
 
@@ -406,17 +406,17 @@ flowchart TD
 
     H --> I
     I --> J
-    J --> K
+    J --> L
+    L --> K
     G --> K
-    K --> L
-    L --> M
+    K --> M
     M --> N
     N --> O
 ```
 
 ---
 
-# End-to-End RAG Pipeline
+## End-to-End RAG Pipeline
 
 ### Step 1 — Upload Customer Reviews
 
@@ -459,17 +459,17 @@ Depending on the detected intent, retrieval is optionally filtered using sentime
 
 ---
 
-### Step 5 — Retrieve Candidate Reviews
-
-Relevant reviews are retrieved using **Maximum Marginal Relevance (MMR)**, balancing similarity with diversity to reduce duplicate context.
-
----
-
-### Step 6 — Expand the Query
+### Step 5 — Expand the Query
 
 The Multi-Query Retriever generates multiple semantic variations of the user's question.
 
 This increases retrieval recall by searching for conceptually similar wording across the review collection.
+
+---
+
+### Step 6 — Retrieve Candidate Reviews
+
+Relevant reviews are retrieved using **Maximum Marginal Relevance (MMR)**, balancing similarity with diversity to reduce duplicate context.
 
 ---
 
@@ -491,7 +491,7 @@ If no relevant information is found, the predefined fallback response is returne
 
 ---
 
-# Component Interaction Summary
+## Component Interaction Summary
 
 | Component | Responsibility |
 |-----------|----------------|
