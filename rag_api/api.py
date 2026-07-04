@@ -16,7 +16,7 @@ from .config import RAGConfig
 # Override at deploy time via the CHAT_RATE_LIMIT environment variable.
 # Format: "<count>/<period>" e.g. "20/minute", "100/hour".
 # ---------------------------------------------------------------------------
-RATE_LIMIT_PER_MINUTE: str = os.getenv("CHAT_RATE_LIMIT", "20/minute")
+RATE_LIMIT_PER_MINUTE: str = os.getenv("CHAT_RATE_LIMIT") or "20/minute"
 
 limiter = Limiter(key_func=get_remote_address)
 
