@@ -23,6 +23,7 @@ langchain-openai>=0.1.0
 langchain-huggingface>=0.0.3
 fastapi>=0.111.0
 uvicorn>=0.30.0
+slowapi>=0.1.9
 reportlab>=4.1.0
 fpdf>=1.7.2
 tf-keras

@@ -1,12 +1,24 @@
 import logging
 import os
 import time
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from .chains import RAGChainManager
 from .config import RAGConfig
+
+# ---------------------------------------------------------------------------
+# Per-IP rate limit for the /chat endpoint.
+# Override at deploy time via the CHAT_RATE_LIMIT environment variable.
+# Format: "<count>/<period>" e.g. "20/minute", "100/hour".
+# ---------------------------------------------------------------------------
+RATE_LIMIT_PER_MINUTE: str = os.getenv("CHAT_RATE_LIMIT", "20/minute")
+
+limiter = Limiter(key_func=get_remote_address)
 
 # API key required to call the /sync endpoint. Set SYNC_API_KEY in the
 # server environment. If the variable is not set the check is skipped so
@@ -21,6 +33,10 @@ logging.basicConfig(level=RAGConfig.LOG_LEVEL)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="BizInsight RAG API", version="1.0.0")
+
+# Attach the limiter to the app and register the 429 handler.
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS setup to allow Streamlit frontend to communicate with this API
 app.add_middleware(
@@ -68,11 +84,12 @@ async def health_check():
 
 # The /chat endpoint is the main entry point for the chatbot functionality. It accepts a ChatRequest, processes it through the appropriate RAG chain (with or without memory), and returns a ChatResponse containing the AI's answer and the sources it used. It also includes a retry mechanism to handle transient issues with the LLM provider, and it implements a smart metadata router to filter retrieved documents based on the sentiment of the user's question (positive or negative intent).
 @app.post("/chat", response_model=ChatResponse)
-def chat(request: ChatRequest):
+@limiter.limit(RATE_LIMIT_PER_MINUTE)
+def chat(request: Request, body: ChatRequest):
     max_retries = 4  # Number of retry attempts for LLM calls in case of failure, with exponential backoff
 
     # --- SMART METADATA ROUTER ---
-    question_lower = request.question.lower()
+    question_lower = body.question.lower()
     search_filter = None
 
     # If they ask about negative things, only filter for negative reviews in ChromaDB. 
@@ -89,21 +106,21 @@ def chat(request: ChatRequest):
     for attempt in range(max_retries): 
         try:
             # Depending on whether the user wants to use memory and has provided a session ID, we either invoke a conversational chain (which maintains context across messages) or a standard QA chain (which treats each message independently). The chains will use the search_filter determined by the smart metadata router to fetch relevant documents from the vector store.
-            if request.use_memory and request.session_id:
-                chain = chain_manager.get_conversational_chain(request.session_id, search_filter=search_filter)
-                result = chain.invoke({"question": request.question})
+            if body.use_memory and body.session_id:
+                chain = chain_manager.get_conversational_chain(body.session_id, search_filter=search_filter)
+                result = chain.invoke({"question": body.question})
                 answer = result.get("answer", "")
                 sources = [doc.page_content for doc in result.get("source_documents", [])]
                 # Persist this turn so the session survives restarts / chain eviction.
                 if answer:
                     try:
                         from database import save_chat_turn
-                        save_chat_turn(request.session_id, request.question, answer)
+                        save_chat_turn(body.session_id, body.question, answer)
                     except Exception as exc:
-                        logger.warning("Could not persist chat turn for %s: %s", request.session_id, exc)
+                        logger.warning("Could not persist chat turn for %s: %s", body.session_id, exc)
             else:
                 chain = chain_manager.get_qa_chain(search_filter=search_filter)
-                result = chain.invoke({"query": request.question})
+                result = chain.invoke({"query": body.question})
                 answer = result.get("result", result.get("answer", ""))
                 sources = [doc.page_content for doc in result.get("source_documents", [])]
 
@@ -117,7 +134,7 @@ def chat(request: ChatRequest):
             return ChatResponse(
                 answer=answer,
                 sources=sources[:RAGConfig.TOP_K],
-                session_id=request.session_id
+                session_id=body.session_id
             )
             
         except Exception as e:
