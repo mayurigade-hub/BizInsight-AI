@@ -89,7 +89,14 @@ def _make_app(rate_limit: str = "2/minute"):
 class TestChatRateLimit(unittest.TestCase):
 
     def setUp(self):
+        import os
+        self._old_env = dict(os.environ)
         self.client, self.configured_limit = _make_app("2/minute")
+
+    def tearDown(self):
+        import os
+        os.environ.clear()
+        os.environ.update(self._old_env)
 
     # ------------------------------------------------------------------
     def _post_chat(self):
