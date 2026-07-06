@@ -93,7 +93,10 @@ def forecast_sentiment(df, forecast_days=7):
 
     for _ in range(forecast_days):
 
-        latest_values = history[-n_lags:]
+# lag_1 must be the most recent value (matches training order in create_lag_features,
+# which uses shift(1)...shift(7)). history[-n_lags:] returns oldest-first, so reverse it.
+
+        latest_values = history[-n_lags:][::-1]
         X_future = pd.DataFrame([latest_values], columns=feature_cols)
 
         prediction = model.predict(X_future)[0]
