@@ -51,7 +51,7 @@ from database import (
     no_users_exist
 )
 from auth import is_logged_in, get_current_user, logout, show_auth_page, show_setup_wizard
-
+from dashboard_aspects import render_aspect_dashboard
 
 # ---------- Chimera AI Client ----------
 
@@ -287,7 +287,10 @@ with tabs[2]:
                     st.error(f"CSV must contain a '{col}' column.")
                 st.stop()
 
-            df["date"] = pd.to_datetime(df["date"])
+            df["date"] = pd.to_datetime(
+                df["date"],
+                dayfirst=True
+            )
             st.dataframe(df, width='stretch')
 
             df = df.dropna(subset=["review"])
@@ -365,9 +368,18 @@ else:
 
 df = pd.DataFrame(data, columns=["review", "sentiment", "date"])
 
+from aspect_extractor import extract_aspects
+from aspect_sentiment import analyze_aspect_sentiment
+
+df["aspects"] = df["review"].apply(extract_aspects)
+df["aspect_sentiment"] = df["review"].apply(analyze_aspect_sentiment)
+
 if not df.empty:
 
-    df["date"] = pd.to_datetime(df["date"])
+    df["date"] = pd.to_datetime(
+        df["date"],
+        dayfirst=True
+    )
 
     positive = (df["sentiment"] > 0.1).sum()
     neutral = ((df["sentiment"] >= -0.1) & (df["sentiment"] <= 0.1)).sum()
@@ -586,6 +598,18 @@ if not df.empty:
 
             st.pyplot(fig2)
             plt.close(fig2)
+
+        # ==========================================
+        # Aspect Dashboard
+        # ==========================================
+
+        from aspect_extractor import extract_aspects
+        from aspect_sentiment import analyze_aspect_sentiment
+
+        df["aspects"] = df["review"].apply(extract_aspects)
+        df["aspect_sentiment"] = df["review"].apply(analyze_aspect_sentiment)
+
+        render_aspect_dashboard(df)
 
         st.markdown("---")
         st.markdown("---")
