@@ -3,6 +3,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import streamlit as st
 from sklearn.feature_extraction.text import CountVectorizer
+from business_insights import render_business_insights
+from business_insights import build_business_summary
 
 
 ASPECTS = [
@@ -348,6 +350,10 @@ def render_aspect_dashboard(df):
         return
 
     summary = build_aspect_summary(df)
+
+    business_summary = build_business_summary(summary)
+
+    render_business_insights(business_summary)
 
     st.markdown("---")
 
