@@ -48,6 +48,20 @@ def initialize_database():
             FOREIGN KEY (user_id) REFERENCES users(id)
         )
         """)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS feedback_aspects (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            feedback_id INTEGER NOT NULL,
+            aspect TEXT NOT NULL,
+            sentiment TEXT NOT NULL,
+            FOREIGN KEY (feedback_id) REFERENCES feedback(id)
+        )
+        """)
+
+        cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_feedback_aspects_feedback_id
+        ON feedback_aspects (feedback_id)
+        """)
         
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS chat_history (
@@ -58,6 +72,16 @@ def initialize_database():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """)
+        #
+        #cursor.execute("""
+        #CREATE TABLE IF NOT EXISTS feedback_aspects (
+        #id INTEGER PRIMARY KEY AUTOINCREMENT,
+        #feedback_id INTEGER NOT NULL,
+        #aspect TEXT NOT NULL,
+        #entiment TEXT NOT NULL,
+         #FOREIGN KEY (feedback_id) REFERENCES feedback(id)
+        #)
+        #""")
 
         cursor.execute("""
         CREATE INDEX IF NOT EXISTS idx_chat_history_session
@@ -319,6 +343,80 @@ def insert_feedback_bulk(reviews_data, user_id):
     except sqlite3.Error as e:
         logger.error(f"Bulk Insert Error: {e}")
         raise sqlite3.Error(f"Bulk Insert Error: {e}")
+
+def insert_feedback_bulk_with_aspects(reviews_data, user_id):
+    """
+    Insert reviews along with their per-aspect sentiment breakdown.
+
+    Args:
+        reviews_data (list[tuple]): list of
+            (review, sentiment, aspect_sentiment_dict)
+            where aspect_sentiment_dict is e.g. {"Delivery": "Negative", "Price": "Positive"}
+        user_id (int): the owning user's id.
+
+    Returns:
+        bool: True on success.
+    """
+    try:
+        with get_connection() as conn:
+            cursor = conn.cursor()
+
+            for review, sentiment, aspect_sentiment in reviews_data:
+                cursor.execute(
+                    "INSERT INTO feedback (review, sentiment, user_id) VALUES (?, ?, ?)",
+                    (review, sentiment, user_id),
+                )
+                feedback_id = cursor.lastrowid
+
+                if aspect_sentiment:
+                    cursor.executemany(
+                        """
+                        INSERT INTO feedback_aspects (feedback_id, aspect, sentiment)
+                        VALUES (?, ?, ?)
+                        """,
+                        [
+                            (feedback_id, aspect, aspect_label)
+                            for aspect, aspect_label in aspect_sentiment.items()
+                        ],
+                    )
+
+            conn.commit()
+            return True
+    except sqlite3.Error as e:
+        logger.error(f"Bulk Insert With Aspects Error: {e}")
+        raise sqlite3.Error(f"Bulk Insert With Aspects Error: {e}")
+
+#new function to fetch aspect sentiment counts for a user
+def fetch_aspect_sentiment(user_id):
+    """
+    Aggregate per-aspect sentiment counts for a user's feedback history.
+
+    Args:
+        user_id (int): the owning user's id.
+
+    Returns:
+        list[tuple]: rows of (aspect, sentiment, count), e.g.
+            [("Delivery", "Negative", 12), ("Delivery", "Positive", 3), ...]
+    """
+    try:
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT fa.aspect, fa.sentiment, COUNT(*) as cnt
+                FROM feedback_aspects fa
+                JOIN feedback f ON fa.feedback_id = f.id
+                WHERE f.user_id = ?
+                GROUP BY fa.aspect, fa.sentiment
+                ORDER BY fa.aspect
+                """,
+                (user_id,),
+            )
+            return cursor.fetchall()
+    except sqlite3.Error as e:
+        logger.error(f"Fetch Aspect Sentiment Error: {e}")
+        return []
+
 
 
 def fetch_feedback(user_id):
