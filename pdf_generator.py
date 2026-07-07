@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Image
 from reportlab.lib.styles import getSampleStyleSheet
 
-from fpdf import FPDF
+
 from datetime import datetime
 
 # ------------------------------------------------------------------
