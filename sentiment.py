@@ -59,7 +59,7 @@ def _convert_bert_prediction(label: str, score: float) -> float:
     label = label.lower()
 
     if label == "positive":
-        return score - 0.1
+        return max(0.0, score - 0.1)
 
     if label == "negative":
         return -score
