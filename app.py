@@ -54,6 +54,8 @@ from database import (
 )
 from auth import is_logged_in, get_current_user, logout, show_auth_page, show_setup_wizard
 from dashboard_aspects import render_aspect_dashboard
+from model_manager import aspect_model
+from ai_dashboard import render_ai_dashboard
 
 # ---------- Chimera AI Client ----------
 
@@ -70,6 +72,17 @@ else:
 
 st.title("📊 BizInsight AI")
 st.caption("AI-powered customer intelligence platform for business growth")
+st.sidebar.header("🤖 AI Settings")
+
+engine = st.sidebar.radio(
+    "Aspect Analysis Engine",
+    [
+        "Rule-Based",
+        "AI"
+    ]
+)
+
+aspect_model.set_engine(engine)
 
 if "data_cleared" in st.session_state:
     st.success("All data removed successfully.")
@@ -126,7 +139,7 @@ def ask_ai(question, reviews:list):
 
         # response structure may vary; try to extract content
         if hasattr(resp, "choices") and len(resp.choices) > 0:
-            return resp.choices[0].message.get("content", "")
+            return resp.choices[0].message.content
         # fallback
         return str(resp)
 
@@ -321,7 +334,9 @@ with tabs[2]:
                     # alongside the review instead of being thrown away after this run.
                     df["aspects"] = df["review"].apply(extract_aspects)
                     from aspect_sentiment import analyze_aspect_sentiment
-                    df["aspect_sentiment"] = df["review"].apply(analyze_aspect_sentiment)
+                    df["aspect_sentiment"] = df["review"].apply(
+                        aspect_model.analyze
+                    )
 
                     reviews_data = list(
                         zip(df["review"], df["sentiment"], df["aspect_sentiment"])
@@ -382,7 +397,9 @@ from aspect_extractor import extract_aspects
 from aspect_sentiment import analyze_aspect_sentiment
 
 df["aspects"] = df["review"].apply(extract_aspects)
-df["aspect_sentiment"] = df["review"].apply(analyze_aspect_sentiment)
+df["aspect_sentiment"] = df["review"].apply(
+    aspect_model.analyze
+)
 
 if not df.empty:
 
@@ -654,9 +671,15 @@ if not df.empty:
         from aspect_sentiment import analyze_aspect_sentiment
 
         df["aspects"] = df["review"].apply(extract_aspects)
-        df["aspect_sentiment"] = df["review"].apply(analyze_aspect_sentiment)
+        df["aspect_sentiment"] = df["review"].apply(
+            aspect_model.analyze
+        )
 
-        render_aspect_dashboard(df)
+        render_aspect_dashboard(df, client)
+        if aspect_model.engine == "AI":
+            st.markdown("---")
+
+            render_ai_dashboard(df)
 
         st.markdown("---")
         st.markdown("---")
@@ -838,4 +861,5 @@ if not df.empty:
             if col2.button("❌ Cancel"):
                 st.session_state["confirm_clear"] = False
                 st.rerun()
-
+        
+        
