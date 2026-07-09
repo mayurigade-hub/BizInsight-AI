@@ -14,6 +14,8 @@ from aspect_extractor import extract_aspects
 logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger(__name__)
 
+from pdf_generator import generate_report_pdf
+
 import streamlit as st
 st.set_page_config(page_title="BizInsight AI", layout="wide")
 from sklearn.feature_extraction.text import CountVectorizer
@@ -34,11 +36,8 @@ from email.mime.multipart import MIMEMultipart
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Image
 from reportlab.lib.styles import getSampleStyleSheet
 from datetime import datetime
-import io
-import nltk
-from nltk.sentiment.vader import SentimentIntensityAnalyzer
-from clustering.run_clustering import run_pipeline
-from clustering.vectorize import load_model
+
+
 from database import (
     initialize_database,
     insert_feedback_bulk,
@@ -209,42 +208,6 @@ with tabs[1]:
                         "content": answer
                     }
                 )
-
-def make_pdf(df, trend, keywords):
-    buffer = io.BytesIO()
-    pdf = SimpleDocTemplate(buffer)
-    styles = getSampleStyleSheet()
-    content = []
-
-    content.append(Paragraph("BizInsight AI Report", styles["Title"]))
-    content.append(Paragraph("Generated: " + str(datetime.now().strftime("%Y-%m-%d %H:%M")), styles["Normal"]))
-    content.append(Paragraph("Total Reviews: " + str(len(df)), styles["Normal"]))
-    content.append(Paragraph("Positive: " + str((df["sentiment"] > 0).sum()), styles["Normal"]))
-    content.append(Paragraph("Negative: " + str((df["sentiment"] < 0).sum()), styles["Normal"]))
-
-    fig1, ax1 = plt.subplots()
-    ax1.plot(trend.index, trend.values)
-    ax1.set_title("Sentiment Trend")
-    img1 = io.BytesIO()
-    fig1.savefig(img1, format="png")
-    plt.close(fig1)
-    img1.seek(0)
-    content.append(Image(img1, width=400, height=200))
-
-    fig2, ax2 = plt.subplots()
-    ax2.bar(["Positive", "Negative"], [(df["sentiment"] > 0).sum(), (df["sentiment"] < 0).sum()])
-    ax2.set_title("Positive vs Negative")
-    img2 = io.BytesIO()
-    fig2.savefig(img2, format="png")
-    plt.close(fig2)
-    img2.seek(0)
-    content.append(Image(img2, width=400, height=200))
-
-    content.append(Paragraph("Top Keywords: " + ", ".join(keywords), styles["Normal"]))
-    pdf.build(content)
-    buffer.seek(0)
-    return buffer.read()
-
 
 # ================= DATA UPLOAD =================
 
@@ -728,7 +691,11 @@ if not df.empty:
         except ValueError as e:
             st.warning(str(e))
         
-        pdf_file = make_pdf(df, trend, list(keywords))
+        pdf_file = generate_report_pdf(
+            df,
+            trend,
+            list(keywords)
+        )
         st.download_button("Download PDF Report", pdf_file, file_name="report.pdf", mime="application/pdf")
 
         col_small, _ = st.columns([1.5, 4])
