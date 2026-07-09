@@ -5,6 +5,7 @@ import streamlit as st
 from sklearn.feature_extraction.text import CountVectorizer
 from business_insights import render_business_insights
 from business_insights import build_business_summary
+from ai_business_summary import generate_ai_summary
 
 
 ASPECTS = [
@@ -338,7 +339,7 @@ def show_aspect_details(df):
         )
 
 
-def render_aspect_dashboard(df):
+def render_aspect_dashboard(df, client):
     """
     Main Aspect Dashboard
     """
@@ -376,3 +377,24 @@ def render_aspect_dashboard(df):
     st.markdown("---")
 
     show_aspect_details(df)
+
+    st.markdown("---")
+
+    st.subheader("🤖 AI Business Copilot")
+
+    summary = build_aspect_summary(df)
+
+    result = generate_ai_summary(
+        client,
+        summary
+    )
+
+    if result:
+
+        st.write(result)
+
+    else:
+
+        st.info(
+            "Configure an API key to enable AI Copilot."
+        )
