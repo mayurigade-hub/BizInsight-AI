@@ -117,6 +117,24 @@ def get_sentiment(text):
     return TextBlob(text).sentiment.polarity
 
 
+def _extract_message_content(message):
+    """
+    Safely extract the text content from a chat completion message,
+    regardless of whether the SDK returns an object (e.g. the modern
+    OpenAI SDK's ChatCompletionMessage, which has no .get()) or a
+    plain dict (older/alternate SDK responses).
+    """
+    # Preferred path: attribute access, as used by current OpenAI SDKs.
+    content = getattr(message, "content", None)
+
+    # Fallback for dict-like responses (e.g. some proxy/gateway APIs
+    # that return raw JSON instead of typed objects).
+    if content is None and isinstance(message, dict):
+        content = message.get("content")
+
+    return content or ""
+
+
 def ask_ai(question, reviews:list):
     if client is None:
         return "AI features are disabled because API key is missing."
@@ -136,9 +154,10 @@ def ask_ai(question, reviews:list):
             temperature=0.2
         )
 
-        # response structure may vary; try to extract content
+        # response structure may vary; try to extract content safely
         if hasattr(resp, "choices") and len(resp.choices) > 0:
-            return resp.choices[0].message.content
+            content = _extract_message_content(resp.choices[0].message)
+            return content if content else "The assistant did not return a response."
         # fallback
         return str(resp)
 
@@ -828,5 +847,3 @@ if not df.empty:
             if col2.button("❌ Cancel"):
                 st.session_state["confirm_clear"] = False
                 st.rerun()
-        
-        
