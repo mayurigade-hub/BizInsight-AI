@@ -53,6 +53,11 @@ def register(
 ):
     username = username.strip()
     email = email.strip()
+
+    # Normalize workspace_id so equivalent IDs (e.g. "acme" vs "acme ")
+    # are treated as the same corporate workspace.
+    workspace_id = workspace_id.strip() if workspace_id else workspace_id
+
     if not username:
         return False, "Username cannot be empty."
 
