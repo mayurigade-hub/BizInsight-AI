@@ -47,6 +47,7 @@ from database import (
     get_workspace_feedback,
     insert_feedback_bulk_with_aspects, #new
     fetch_aspect_sentiment,  #new
+    fetch_workspace_aspect_sentiment,  #new: workspace-wide aspect sentiment for corporate users
     clear_data,
     delete_user,
     no_users_exist
@@ -508,7 +509,14 @@ if not df.empty:
         # ASPECT-BASED SENTIMENT 
         st.subheader("🔍 Sentiment by Aspect")
 
-        aspect_rows = fetch_aspect_sentiment(current_user["id"])
+        # Corporate workspaces should see aspect sentiment aggregated across
+        # every member of the workspace, matching how review data itself is
+        # fetched via get_workspace_feedback() above. Personal accounts keep
+        # seeing only their own aspect data.
+        if current_user["workspace_type"] == "corporate":
+            aspect_rows = fetch_workspace_aspect_sentiment(current_user["workspace_id"])
+        else:
+            aspect_rows = fetch_aspect_sentiment(current_user["id"])
 
         if not aspect_rows:
             st.info("No aspect-level data yet. Upload reviews to see this breakdown.")
