@@ -1,56 +1,66 @@
-from aspect_extractor import extract_aspects
+from aspect_sentiment import analyze_aspect_sentiment
 
 
-def test_delivery():
+def test_negative_delivery():
 
     review = "The delivery was delayed."
 
-    assert "Delivery" in extract_aspects(review)
+    result = analyze_aspect_sentiment(review)
+
+    assert result["Delivery"] == "Negative"
 
 
-def test_packaging():
+def test_positive_packaging():
 
     review = "Packaging was excellent."
 
-    assert "Packaging" in extract_aspects(review)
+    result = analyze_aspect_sentiment(review)
+
+    assert result["Packaging"] == "Positive"
 
 
-def test_price():
+def test_negative_price():
 
     review = "The product is too expensive."
 
-    assert "Price" in extract_aspects(review)
+    result = analyze_aspect_sentiment(review)
+
+    assert result["Price"] == "Negative"
 
 
-def test_quality():
+def test_positive_quality():
 
     review = "The quality is amazing."
 
-    assert "Product Quality" in extract_aspects(review)
+    result = analyze_aspect_sentiment(review)
+
+    assert result["Product Quality"] == "Positive"
 
 
-def test_customer_service():
+def test_positive_customer_service():
 
     review = "Customer support solved my issue."
 
-    assert "Customer Service" in extract_aspects(review)
+    result = analyze_aspect_sentiment(review)
+
+    assert result["Customer Service"] == "Positive"
 
 
-def test_multiple_aspects():
+def test_multiple_aspects_mixed_sentiment():
 
     review = (
         "Delivery was late but "
         "packaging was good."
     )
 
-    result = extract_aspects(review)
+    result = analyze_aspect_sentiment(review)
 
-    assert "Delivery" in result
-    assert "Packaging" in result
+    assert result["Delivery"] == "Negative"
+    assert result["Packaging"] == "Positive"
 
 
-def test_no_aspect():
+def test_no_aspect_returns_empty_dict():
 
     review = "I bought this yesterday."
 
-    assert extract_aspects(review) == []
+    assert analyze_aspect_sentiment(review) == {}
