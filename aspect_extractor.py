@@ -66,6 +66,16 @@ ASPECT_KEYWORDS = {
     ]
 }
 
+# Precompile word-boundary patterns once at import time so we don't
+# recompile regex objects on every extract_aspects() call.
+_KEYWORD_PATTERNS = {
+    aspect: [
+        (keyword, re.compile(r"\b" + re.escape(keyword) + r"\b"))
+        for keyword in keywords
+    ]
+    for aspect, keywords in ASPECT_KEYWORDS.items()
+}
+
 
 def clean_text(text: str) -> str:
     """
@@ -89,6 +99,12 @@ def extract_aspects(review: str):
     """
     Detect aspects mentioned in a review.
 
+    Uses word-boundary regex matching instead of plain substring
+    search, so keywords only match whole words (or whole phrases,
+    for multi-word keywords like "customer care"), not fragments
+    inside unrelated longer words (e.g. "cost" no longer matches
+    inside "accosted").
+
     Args:
         review (str)
 
@@ -100,11 +116,11 @@ def extract_aspects(review: str):
 
     detected = []
 
-    for aspect, keywords in ASPECT_KEYWORDS.items():
+    for aspect, patterns in _KEYWORD_PATTERNS.items():
 
-        for keyword in keywords:
+        for keyword, pattern in patterns:
 
-            if keyword in review:
+            if pattern.search(review):
                 detected.append(aspect)
                 break
 
