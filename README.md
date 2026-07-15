@@ -23,6 +23,7 @@ BizInsight AI is an **AI-powered customer feedback analytics platform** that hel
 | 🧠 **RAG Chatbot** | Conversational AI grounded in your actual review data (FastAPI + ChromaDB) |
 | ⬇️ **CSV Export** | Download processed feedback data |
 
+
 ---
 
 ## ⚠️ Trend Alert & Risk Detection (New Feature)
@@ -130,6 +131,421 @@ BizInsight-AI/
 
 ---
 
+# 🏗️ Architecture & Data Flow
+
+BizInsight AI uses a modular **Retrieval-Augmented Generation (RAG)** architecture that combines **Streamlit**, **FastAPI**, **SQLite**, **ChromaDB**, **Sentence Transformers**, and **Google Gemini (via OpenRouter)** to provide grounded answers based only on uploaded customer reviews.
+
+The system separates data storage, vector search, retrieval, and language generation into independent components, making it easier to maintain and extend.
+
+---
+
+## System Architecture
+
+```mermaid
+flowchart LR
+
+    A[User]
+    B[Streamlit Dashboard]
+    C[(SQLite Database)]
+    D[Vector Synchronization]
+    E[Sentence Transformer<br/>all-MiniLM-L6-v2]
+    F[(ChromaDB)]
+    G[FastAPI RAG API]
+    H[Metadata Router]
+    I[MMR Retriever]
+    J[Multi-Query Retriever]
+    K[Cross-Encoder Re-Ranker]
+    L[Google Gemini<br/>via OpenRouter]
+    M[Grounded Response]
+
+    A --> B
+    B --> C
+    C --> D
+    D --> E
+    E --> F
+
+    A --> G
+    G --> H
+    H --> J
+    J --> I
+    F --> I
+    I --> J
+    J --> K
+    K --> L
+    L --> M
+    M --> A
+```
+---
+
+## Architecture Components
+
+## 1. Streamlit Dashboard
+
+The Streamlit application acts as the primary user interface.
+
+It allows users to:
+
+- Upload customer review CSV files
+- Run sentiment analysis
+- Explore business analytics
+- Launch complaint clustering
+- Interact with the AI chatbot
+
+Uploaded reviews are processed before being stored in SQLite.
+
+---
+
+## 2. SQLite Database
+
+SQLite serves as the application's persistent storage layer.
+
+It stores:
+
+- Customer reviews
+- Sentiment values
+- Upload timestamps
+- User information
+- Chat history
+
+The vector database is built using review data stored in SQLite.
+
+---
+
+## 3. Vector Synchronization
+
+The project includes two synchronization mechanisms:
+
+- `sync_vectors.py`
+- FastAPI `/sync` endpoint
+
+Both convert customer reviews into LangChain `Document` objects before generating embeddings and storing them inside ChromaDB.
+
+Each document contains:
+
+- Review text
+- Sentiment metadata
+- Upload date
+- Review ID
+
+> **Note:** CSV uploads store reviews in SQLite. Vector synchronization is performed separately through the provided synchronization utilities.
+
+---
+
+## 4. Embedding Generation
+
+Every customer review is converted into a dense vector using:
+
+```text
+all-MiniLM-L6-v2
+```
+
+The embedding model is loaded only once and reused throughout the application to reduce initialization overhead and improve performance.
+
+Embeddings are normalized before storage to improve similarity search quality.
+
+---
+
+## 5. ChromaDB Vector Store
+
+Embedded reviews are stored inside a persistent ChromaDB collection.
+
+Configuration includes:
+
+- Persistent storage directory
+- Collection name
+- Metadata storage
+- Maximum Marginal Relevance (MMR) retrieval
+
+Each stored vector retains metadata, allowing efficient filtering during retrieval.
+
+Example metadata:
+
+- Sentiment
+- Date
+- Review ID
+
+---
+
+## 6. FastAPI Backend
+
+The FastAPI backend exposes the chatbot API.
+
+Available endpoints include:
+
+| Endpoint | Purpose |
+|----------|----------|
+| `/chat` | Answer questions using RAG |
+| `/sync` | Synchronize documents into ChromaDB |
+| `/health` | Check API and vector store health |
+
+The backend coordinates:
+
+- Retrieval
+- Query expansion
+- Re-ranking
+- Prompt generation
+- LLM inference
+
+---
+
+## 7. Smart Metadata Router
+
+Before retrieval begins, the backend analyzes the user's question.
+
+If the question indicates **negative intent**, retrieval is restricted to reviews with negative sentiment.
+
+Examples include:
+
+- issue
+- problem
+- complaint
+- broken
+- bad
+
+If the question indicates **positive intent**, retrieval is restricted to positive reviews.
+
+Examples include:
+
+- good
+- great
+- best
+- awesome
+- love
+
+If no sentiment is detected, the retriever searches across all reviews.
+
+This improves retrieval precision without requiring additional prompts.
+
+---
+
+## 8. Maximum Marginal Relevance (MMR) Retrieval
+
+Instead of performing a standard similarity search, the retriever uses **Maximum Marginal Relevance (MMR)**.
+
+MMR balances:
+
+- similarity
+- diversity
+
+This helps avoid retrieving multiple nearly identical reviews while still preserving relevance.
+
+---
+
+## 9. Multi-Query Expansion
+
+The chatbot uses LangChain's **MultiQueryRetriever**.
+
+Instead of searching with only the original question, multiple semantic variations are generated.
+
+For example:
+
+User question:
+
+> Why are customers unhappy with delivery?
+
+Possible search variants:
+
+- Delivery complaints
+- Shipping delays
+- Late deliveries
+- Courier problems
+
+Searching multiple semantic variants improves recall and increases the likelihood of retrieving useful reviews.
+
+---
+
+## 10. Cross-Encoder Re-Ranking
+
+Retrieved reviews are passed through the Hugging Face Cross-Encoder:
+
+```text
+cross-encoder/ms-marco-MiniLM-L-6-v2
+```
+
+Unlike vector similarity, the cross-encoder jointly evaluates the user's question and every retrieved review.
+
+The highest-scoring reviews are selected before sending context to the language model.
+
+This additional ranking stage significantly improves response quality.
+
+---
+
+## 11. LLM Response Generation
+
+The selected customer reviews are inserted into a carefully designed prompt before being sent to:
+
+```text
+Google Gemini
+(via OpenRouter)
+```
+
+The prompt instructs the model to:
+
+- Use only retrieved customer reviews
+- Avoid making unsupported claims
+- Return a fallback response if evidence is unavailable
+
+When no supporting review exists, the chatbot responds with:
+
+> "The customer reviews do not mention this information."
+
+This ensures grounded and reliable answers.
+
+---
+
+## 12. Conversation Memory
+
+For conversational sessions, BizInsight AI maintains context using conversation memory.
+
+Conversation history is preserved using:
+
+- Session IDs
+- SQLite chat history
+- Memory window configuration
+
+This enables follow-up questions without requiring users to repeat previous context.
+
+---
+
+## Data Flow
+
+The following diagram illustrates how customer reviews move through the RAG pipeline.
+
+```mermaid
+flowchart TD
+
+    A[Upload CSV]
+    B[Streamlit Dashboard]
+    C[Review Processing]
+    D[SQLite Database]
+
+    E[Vector Synchronization]
+    F[Sentence Transformer]
+    G[ChromaDB]
+
+    H[User Question]
+    I[FastAPI]
+    J[Metadata Router]
+    K[MMR Retrieval]
+    L[Multi-Query Expansion]
+    M[Cross-Encoder Re-Ranking]
+    N[Gemini via OpenRouter]
+    O[Grounded Business Answer]
+
+    A --> B
+    B --> C
+    C --> D
+
+    D --> E
+    E --> F
+    F --> G
+
+    H --> I
+    I --> J
+    J --> L
+    L --> K
+    G --> K
+    K --> M
+    M --> N
+    N --> O
+```
+
+---
+
+## End-to-End RAG Pipeline
+
+### Step 1 — Upload Customer Reviews
+
+Users upload customer review CSV files through the Streamlit dashboard.
+
+The application processes the reviews, performs sentiment analysis, and stores the processed records inside SQLite.
+
+---
+
+### Step 2 — Synchronize the Vector Store
+
+Stored reviews are converted into LangChain `Document` objects.
+
+Each document includes:
+
+- Review text
+- Sentiment
+- Timestamp
+- Review identifier
+
+The synchronization utilities generate embeddings for every review and store them in ChromaDB.
+
+---
+
+### Step 3 — Ask a Business Question
+
+Users submit natural language questions through the chatbot.
+
+Example:
+
+> What are the most common delivery complaints?
+
+---
+
+### Step 4 — Metadata Routing
+
+The backend first determines whether the question has positive or negative intent.
+
+Depending on the detected intent, retrieval is optionally filtered using sentiment metadata stored inside ChromaDB.
+
+---
+
+### Step 5 — Expand the Query
+
+The Multi-Query Retriever generates multiple semantic variations of the user's question.
+
+This increases retrieval recall by searching for conceptually similar wording across the review collection.
+
+---
+
+### Step 6 — Retrieve Candidate Reviews
+
+Relevant reviews are retrieved using **Maximum Marginal Relevance (MMR)**, balancing similarity with diversity to reduce duplicate context.
+
+---
+
+### Step 7 — Re-Rank Retrieved Reviews
+
+Candidate reviews are scored using the Hugging Face Cross-Encoder model.
+
+Only the most relevant reviews are retained for the final context.
+
+---
+
+### Step 8 — Generate the Final Response
+
+The selected reviews are inserted into the LLM prompt and sent to Google Gemini through OpenRouter.
+
+The model generates a business-focused response using only the supplied customer review context.
+
+If no relevant information is found, the predefined fallback response is returned.
+
+---
+
+## Component Interaction Summary
+
+| Component | Responsibility |
+|-----------|----------------|
+| **Streamlit** | User interface, CSV uploads, analytics dashboard |
+| **SQLite** | Persistent storage for reviews and chat history |
+| **Vector Synchronization** | Converts stored reviews into LangChain documents |
+| **Sentence Transformer** | Generates dense vector embeddings (`all-MiniLM-L6-v2`) |
+| **ChromaDB** | Persistent vector database |
+| **FastAPI** | RAG backend and API endpoints |
+| **Metadata Router** | Applies sentiment-aware filtering before retrieval |
+| **MMR Retriever** | Retrieves relevant and diverse customer reviews |
+| **Multi-Query Retriever** | Improves retrieval recall using query expansion |
+| **Cross-Encoder** | Re-ranks retrieved reviews by semantic relevance |
+| **Google Gemini (OpenRouter)** | Generates grounded business answers |
+| **Conversation Memory** | Preserves conversational context across sessions |
+
+---
+
 ## 📥 Installation & Setup
 
 ### 1. Clone the Repository
@@ -207,10 +623,38 @@ review
 "Shipping was late and the item arrived damaged."
 "Decent for the price, nothing special."
 ```
+---
+
+## 🐳 Run with Docker
+
+You can run BizInsight AI in a container with no local Python setup.
+
+### 1. Set your API key
+Either create a `.env` file in the project root:
+```bash
+echo "OPENROUTER_API_KEY=your_api_key_here" >> .env
+```
+or export it directly in your shell (useful for CI/CD or production):
+```bash
+export OPENROUTER_API_KEY=your_api_key_here
+```
+
+### 2. Build and start the app
+```bash
+docker compose up --build
+```
+
+The dashboard will be available at **http://localhost:8501**.
+
+### Notes
+- Customer feedback data and vector embeddings are stored in Docker-managed named volumes, so they persist across `docker compose down` / `up` and rebuilds. To fully reset, run `docker compose down -v`.
+- The first build installs several large ML dependencies (PyTorch, Transformers, ChromaDB, etc.) and can take a while — subsequent builds are cached and much faster.
+- To stop the app: `docker compose down`
 
 ---
 
 ## 🧪 Testing
+
 
 The project includes **56 automated tests** covering the alerts module and database layer.
 
@@ -268,3 +712,30 @@ BTech Students | AI & Software Development Enthusiasts
 ---
 
 ⭐ If you like this project, consider giving it a star!
+
+## ✨ README Improvement Notes
+
+### 📌 Formatting Enhancements Needed
+- Improve heading hierarchy for better readability
+- Ensure consistent spacing between sections
+- Use proper Markdown formatting for code blocks and lists
+- Align all installation and usage steps properly
+
+### 🚀 Suggested Structure Upgrade
+- Introduction
+- Features
+- Tech Stack
+- Installation
+- Usage
+- Project Structure
+- Contribution Guidelines
+- License
+
+### 🛠️ Documentation Improvements
+- Add badges (optional): build, license, contributors
+- Add screenshots for better UI understanding
+- Standardize code blocks for commands
+
+### 🎯 Goal
+Improve onboarding experience for new contributors and users by making README more structured, readable, and professional
+

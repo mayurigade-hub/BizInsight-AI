@@ -1,0 +1,33 @@
+services:
+  bizinsight-ai:
+    build: .
+    ports:
+      - "8501:8501"
+    # OPENROUTER_API_KEY is read from the host shell environment if set
+    # there (e.g. in CI/CD, or `export OPENROUTER_API_KEY=...`), or from
+    # the .env file that Compose auto-loads from the project root if
+    # present. Listing the variable name with no value means Compose
+    # passes through whichever of those is available -- unlike env_file,
+    # this does NOT fail `docker compose up` if no .env file exists,
+    # which matters for CI/CD pipelines and production environments that
+    # set secrets directly. The app itself raises a clear error on
+    # startup if the key ends up unset either way.
+    environment:
+      - OPENROUTER_API_KEY
+    volumes:
+      # Named volumes (managed by Docker) instead of host bind mounts.
+      # Bind mounts can cause permission errors now that the container
+      # runs as a non-root user: if the host directory doesn't exist yet,
+      # Docker creates it as root:root, which the container's unprivileged
+      # appuser can't write to. Named volumes are created and owned
+      # correctly by Docker regardless of host OS, and the Dockerfile's
+      # /app/bizinsight.db -> /data/bizinsight.db symlink means the
+      # database file is created automatically on first run.
+      - bizinsight_data:/data
+      - chroma_db:/app/chroma_db
+    restart: unless-stopped
+
+volumes:
+  bizinsight_data:
+  chroma_db:
+  

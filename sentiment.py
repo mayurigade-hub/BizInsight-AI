@@ -1,4 +1,5 @@
-from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+import nltk
+from nltk.sentiment.vader import SentimentIntensityAnalyzer
 from transformers import pipeline
 import numpy as np
 import re
@@ -23,7 +24,10 @@ def _concession_penalty(text: str) -> float:
                 if after_score < 0:
                     return after_score * 0.5  # penalty for negative clause after concession
     return 0.0
-
+try:
+    nltk.data.find("sentiment/vader_lexicon.zip")
+except LookupError:
+    nltk.download("vader_lexicon", quiet=True)
 
 vader = SentimentIntensityAnalyzer()
 
@@ -47,7 +51,20 @@ def _vader_score(text: str) -> float:
     scores = vader.polarity_scores(text)
     return scores["compound"]
 
+def _convert_bert_prediction(label: str, score: float) -> float:
+    """
+    Convert model output into a normalized sentiment score.
+    Keeps single-review and batch-review paths consistent.
+    """
+    label = label.lower()
 
+    if label == "positive":
+        return max(0.0, score - 0.1)
+
+    if label == "negative":
+        return -score
+
+    return 0.0
 def _bert_score(text: str) -> float:
     """
     Returns a float in [-1, +1].
@@ -59,12 +76,7 @@ def _bert_score(text: str) -> float:
     result = bert_pipeline(text)[0]
     label = result["label"].lower()
     score = result["score"]          # confidence: 0.0 to 1.0
-    if label == "positive":
-        return score  -0.1               # e.g. +0.97
-    elif label == "negative":
-        return -score
-    else:
-        return 0.0
+    return _convert_bert_prediction(label, score)
 
 def _ensemble_score(vader_s: float, bert_s: float) -> float:
     
@@ -141,8 +153,12 @@ def analyze_batch(texts: list) -> list:
     for text, bert_result in zip(texts, bert_results):
         v = _vader_score(text)
         # ✅ consistent with _bert_score
-        label = bert_result["label"].lower()
-        b = bert_result["score"] if label == "positive" else (-bert_result["score"] if label == "negative" else 0.0)
+        label = bert_result["label"]
+
+        b = _convert_bert_prediction(
+            label,
+            bert_result["score"]
+        )
         final = _ensemble_score(v, b) + _concession_penalty(text)
         final = max(-1.0, min(1.0, final))
         output.append({
