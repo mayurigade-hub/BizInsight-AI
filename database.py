@@ -491,6 +491,19 @@ def clear_data(user_id):
     try:
         with get_connection() as conn:
             cursor = conn.cursor()
+            # Delete aspect rows first since feedback_aspects.feedback_id
+            # references feedback(id) and FK enforcement is ON. Deleting
+            # feedback rows before their aspect rows would violate the
+            # foreign key constraint and cause the clear to fail.
+            cursor.execute(
+                """
+                DELETE FROM feedback_aspects
+                WHERE feedback_id IN (
+                    SELECT id FROM feedback WHERE user_id = ?
+                )
+                """,
+                (user_id,),
+            )
             cursor.execute("DELETE FROM feedback WHERE user_id = ?", (user_id,))
             conn.commit()
             return True
