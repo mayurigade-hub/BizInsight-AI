@@ -339,7 +339,12 @@ with tabs[2]:
                     )
 
                     reviews_data = list(
-                        zip(df["review"], df["sentiment"], df["aspect_sentiment"])
+                        zip(
+                            df["review"],
+                            df["sentiment"],
+                            df["aspect_sentiment"],
+                            df["date"],
+                        )
                     )
 
                     if st.session_state.get("last_upload_hash") != file_hash:
@@ -370,14 +375,11 @@ with tabs[2]:
 
                 new_negative_percent = round((df[df["sentiment"] < 0].shape[0] / df.shape[0]) * 100, 2)
                 if new_negative_percent > 30:
-                    subject = "BizInsight AI Alert: Negative Sentiment Spike Detected"
-                    body = (
-                        f"Hello,\n\nA recent data upload has shown a significant spike in negative sentiment.\n\n"
-                        f"Negative Sentiment in new batch: {new_negative_percent}%\n\n"
-                        f"Please log in to the BizInsight AI dashboard to analyze the feedback and take appropriate action.\n\n"
-                        f"Regards,\nThe BizInsight AI Team"
+                    send_negative_alert(
+                        st.session_state.alert_email,
+                        new_negative_percent,
+                        total,
                     )
-                    send_negative_alert(st.session_state.alert_email, subject, body)
 
 if current_user["workspace_type"] == "corporate":
 
