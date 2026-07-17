@@ -604,12 +604,17 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
+> **Verification:** Open `http://localhost:8501` in your browser and confirm that the dashboard loads successfully before uploading a CSV file or starting the optional RAG backend.
+
 ### 6. (Optional) Start the RAG Chatbot Backend
 
 In a separate terminal:
+
 ```bash
 python run_chatbot_api.py
 ```
+
+> **Verification:** Visit `http://localhost:8000/health` (or the configured FastAPI port) to confirm the backend is running before using the AI Business Assistant.
 
 ---
 
