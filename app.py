@@ -19,7 +19,9 @@ from pdf_generator import generate_report_pdf
 import streamlit as st
 st.set_page_config(page_title="BizInsight AI", layout="wide")
 from sklearn.feature_extraction.text import CountVectorizer
+from alerts import compute_alerts
 from textblob import TextBlob
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from openai import (
     OpenAI,
     AuthenticationError,
@@ -29,14 +31,12 @@ from openai import (
     APIError,
 )
 from sentiment import analyze
-# ---------- Chimera AI Client ----------
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Image
 from reportlab.lib.styles import getSampleStyleSheet
 from datetime import datetime
-
 
 from database import (
     initialize_database,
@@ -45,18 +45,17 @@ from database import (
     fetch_all_feedback,
     fetch_all_users,
     get_workspace_feedback,
-    insert_feedback_bulk_with_aspects, #new
-    fetch_aspect_sentiment,  #new
+    insert_feedback_bulk_with_aspects,
+    fetch_aspect_sentiment,
+    fetch_workspace_aspect_sentiment,
     clear_data,
     delete_user,
-    no_users_exist
+    no_users_exist,
 )
 from auth import is_logged_in, get_current_user, logout, show_auth_page, show_setup_wizard
 from dashboard_aspects import render_aspect_dashboard
 from model_manager import aspect_model
 from ai_dashboard import render_ai_dashboard
-
-# ---------- Chimera AI Client ----------
 
 api_key = os.getenv("OPENROUTER_API_KEY")
 
@@ -68,6 +67,8 @@ else:
         api_key=api_key,
         base_url="https://openrouter.ai/api/v1"
     )
+
+vader_analyzer = SentimentIntensityAnalyzer()
 
 st.title("📊 BizInsight AI")
 st.caption("AI-powered customer intelligence platform for business growth")
@@ -89,7 +90,6 @@ if "data_cleared" in st.session_state:
 if "messages" not in st.session_state:
     st.session_state.messages=[]
 
-tabs = st.tabs(["📊 Dashboard", "🤖 AI Assistant", "📂 Data Upload", "⚙ Controls"])
 
 
 # ================= FUNCTIONS =================
@@ -112,9 +112,27 @@ if "alert_email" not in st.session_state:
 
 # ─── OpenAI Client ───────────────────────────────────────────────────────────
 
+tabs = st.tabs([
+    "📊 Dashboard",
+    "🤖 AI Assistant",
+    "📂 Data Upload",
+    "⚠️ Alerts",
+    "⚙ Controls",
+    "🧠 Chatbot",
+])
 
 def get_sentiment(text):
-    return TextBlob(text).sentiment.polarity
+    """VADER sentiment compound score."""
+    return vader_analyzer.polarity_scores(text)["compound"]
+
+
+def clean_text_for_sentiment(text):
+    """Minimal cleaning for sentiment."""
+    text = text.lower()
+    text = re.sub(r"\d+", "", text)
+    text = re.sub(r"#", "", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
 
 
 def _extract_message_content(message):
@@ -246,10 +264,10 @@ with tabs[1]:
 with tabs[2]:
 
     st.subheader("📂 Upload Customer Reviews")
-
     uploaded_file = st.file_uploader(
         "Upload CSV with review column",
-        type="csv"
+        type="csv",
+        key="csv_uploader",
     )
 
     if uploaded_file:
@@ -375,8 +393,6 @@ else:
 
 df = pd.DataFrame(data, columns=["review", "sentiment", "date"])
 
-from aspect_extractor import extract_aspects
-from aspect_sentiment import analyze_aspect_sentiment
 
 df["aspects"] = df["review"].apply(extract_aspects)
 df["aspect_sentiment"] = df["review"].apply(
@@ -504,11 +520,63 @@ if not df.empty:
         c4.metric("Neutral %", f"{neutral_percent}%")
 
         st.markdown("---")
+        st.subheader("🔍 Smart Complaint Clustering")
 
-        # ASPECT-BASED SENTIMENT 
+        if st.button("Find Complaint Clusters"):
+            negative_reviews = df[df["sentiment"] < 0]["cleaned_review"].tolist()
+            if len(negative_reviews) < 10:
+                st.warning(f"Only {len(negative_reviews)} negative reviews. Need at least 10.")
+            else:
+                try:
+                    from clustering.run_clustering import run_pipeline
+                    from clustering.vectorize import load_model
+
+                    embedding_model = load_model()
+                except ModuleNotFoundError as e:
+                    st.error(f"Clustering dependency missing: {e.name}")
+                    st.info(
+                        "Install the clustering dependencies with: "
+                        "pip install -r requirements.txt"
+                    )
+                    st.stop()
+
+                with st.spinner("Clustering negative reviews..."):
+                    result = run_pipeline(
+                        negative_reviews,
+                        embedding_model,
+                        min_topic_size=25,
+                        similarity_threshold=0.4,
+                        verbose=True
+                    )
+                    if result["success"]:
+                        st.success(
+                            f"✅ Found {result['n_clusters']} clusters from "
+                            f"{result['total_negative_reviews']} reviews"
+                        )
+                        for cluster in result["clusters"]:
+                            title = (
+                                f"📌 {cluster['name']} "
+                                f"({cluster['percentage']:.1f}%) - "
+                                f"{cluster['count']} reviews"
+                            )
+                            with st.expander(title):
+                                st.write("**Example reviews:**")
+                                for ex in cluster.get('example_reviews', [])[:3]:
+                                    st.write(f"- \"{ex}\"")
+                    else:
+                        st.error(result["message"])
+
+# ASPECT-BASED SENTIMENT 
         st.subheader("🔍 Sentiment by Aspect")
 
-        aspect_rows = fetch_aspect_sentiment(current_user["id"])
+        # Corporate workspaces should see aspect sentiment aggregated across
+        # every member of the workspace, matching how review data itself is
+        # fetched via get_workspace_feedback() above. Personal accounts keep
+        # seeing only their own aspect data.
+        if current_user["workspace_type"] == "corporate":
+            aspect_rows = fetch_workspace_aspect_sentiment(current_user["workspace_id"])
+        else:
+            aspect_rows = fetch_aspect_sentiment(current_user["id"])
 
         if not aspect_rows:
             st.info("No aspect-level data yet. Upload reviews to see this breakdown.")
@@ -758,6 +826,13 @@ if not df.empty:
         # Keywords
 
         st.markdown("---")
+        csv = df.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            "⬇️ Download Feedback CSV",
+            data=csv,
+            file_name="feedback.csv",
+            mime="text/csv",
+        )
 
         # Keywords
 
@@ -809,6 +884,79 @@ if not df.empty:
         st.dataframe(keyword_df, use_container_width=True)
 
 
+    # ================= ALERTS =================
+    with tabs[3]:
+        st.subheader("⚠️ Trend Alert & Risk Detection")
+        st.caption("Computed over the last 7 days vs the prior 7-day baseline.")
+
+        alert = compute_alerts()
+
+        if alert["insufficient_data"]:
+            st.warning(
+                f"⚠️ Only **{alert['recent_count']}** review(s) in the last 7 days. "
+                "Need at least 5 for reliable alerts. Results may be misleading."
+            )
+
+        if alert["risk_level"] == 2:
+            st.error(
+                f"🔴 **HIGH RISK** — {alert['recent_negative_pct']}% of recent "
+                "reviews are negative. "
+                "Immediate attention required."
+            )
+        elif alert["risk_level"] == 1:
+            st.warning(
+                f"🟡 **MEDIUM RISK** — {alert['recent_negative_pct']}% of recent "
+                "reviews are negative."
+            )
+        else:
+            st.success(
+                f"🟢 **LOW RISK** — Sentiment is stable. "
+                f"{alert['recent_negative_pct']}% negative in the last 7 days."
+            )
+
+        st.markdown("---")
+
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Risk Score", alert["risk_score"])
+        m2.metric(
+            "Recent Negative %",
+            f"{alert['recent_negative_pct']}%",
+            delta=f"{alert['spike_delta']:+.1f}% vs prior week",
+            delta_color="inverse",
+        )
+        m3.metric("Reviews (last 7d)", alert["recent_count"])
+        m4.metric("Spike Detected", "Yes" if alert["spike_detected"] else "No")
+
+        st.markdown("---")
+
+        st.subheader("🔑 Top Risk Keywords (from negative reviews)")
+        if alert["top_risk_keywords"]:
+            keyword_cols = st.columns(4)
+            for i, kw in enumerate(alert["top_risk_keywords"]):
+                keyword_cols[i % 4].markdown(
+                    f"<span style='background:#ff4b4b22;padding:4px 10px;"
+                    f"border-radius:6px;color:#ff4b4b;font-weight:600'>{kw}</span>",
+                    unsafe_allow_html=True,
+                )
+        else:
+            st.info("No recurring negative keywords found in the last 7 days.")
+
+        st.markdown("---")
+
+        with st.expander("📊 How is this calculated?"):
+            st.markdown(f"""
+| Metric | Value |
+|---|---|
+| Recent window | Last 7 days |
+| Baseline window | Prior 7 days |
+| Recent negative % | `{alert['recent_negative_pct']}%` |
+| Baseline negative % | `{alert['baseline_negative_pct']}%` |
+| Delta (spike) | `{alert['spike_delta']:+.1f}%` |
+| Spike threshold | `+15%` change triggers spike flag |
+| High risk threshold | `>= 60%` negative OR `+30%` delta |
+| Medium risk threshold | `>= 40%` negative OR `+15%` delta |
+            """)
+
     # ================= CONTROLS =================
 
     with tabs[3]:
@@ -847,3 +995,63 @@ if not df.empty:
             if col2.button("❌ Cancel"):
                 st.session_state["confirm_clear"] = False
                 st.rerun()
+
+    # ================= RAG CHATBOT =================
+    with tabs[5]:
+        st.subheader("🧠 RAG Chatbot – Ask your reviews")
+        if "session_id" not in st.session_state:
+            st.session_state.session_id = str(uuid.uuid4())
+        if "rag_messages" not in st.session_state:
+            st.session_state.rag_messages = []
+
+        if st.button("🗑️ New Conversation"):
+            st.session_state.rag_messages = []
+            st.session_state.session_id = str(uuid.uuid4())
+            st.rerun()
+
+        for msg in st.session_state.rag_messages:
+            with st.chat_message(msg["role"]):
+                st.write(msg["content"])
+                if "sources" in msg:
+                    with st.expander("See source reviews"):
+                        for src in msg["sources"]:
+                            st.write(f"- {src[:200]}...")
+
+        user_q = st.chat_input("Ask a question about your reviews...")
+        if user_q:
+            st.session_state.rag_messages.append({"role": "user", "content": user_q})
+            with st.chat_message("user"):
+                st.write(user_q)
+
+            with st.chat_message("assistant"):
+                with st.spinner("Searching and generating..."):
+                    try:
+                        resp = requests.post(
+                            "http://localhost:8001/chat",
+                            json={
+                                "question": user_q,
+                                "use_memory": True,
+                                "session_id": st.session_state.session_id,
+                            },
+                        )
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            answer = data["answer"]
+                            sources = data["sources"]
+                            st.write(answer)
+                            with st.expander("📚 Source reviews"):
+                                for src in sources:
+                                    st.write(f"- {src}")
+                            st.session_state.rag_messages.append({
+                                "role": "assistant",
+                                "content": answer,
+                                "sources": sources,
+                            })
+                        else:
+                            st.error(f"API error: {resp.status_code}")
+                    except Exception as e:
+                        st.error(f"Cannot connect to RAG API: {e}")
+                        st.info("Start FastAPI server: python run_chatbot_api.py")
+
+else:
+    st.info("Upload a CSV to start.")

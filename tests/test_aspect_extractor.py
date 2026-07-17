@@ -1,9 +1,14 @@
 from aspect_sentiment import analyze_aspect_sentiment
+import pandas as pd
+
+from dashboard_aspects import (
+    build_aspect_summary,
+    get_aspect_sentiment_label,
+    normalize_aspect_sentiment,
+)
 
 
-def test_negative_delivery():
-
-    review = "The delivery was delayed."
+def test_get_label_plain_string():
 
     result = analyze_aspect_sentiment(review)
 
@@ -11,26 +16,34 @@ def test_negative_delivery():
 
 
 def test_positive_packaging():
+    sentiment = {"Delivery": "Negative"}
 
-    review = "Packaging was excellent."
+    assert get_aspect_sentiment_label(sentiment, "Delivery") == "Negative"
+
+
+def test_get_label_nested_dict():
 
     result = analyze_aspect_sentiment(review)
 
     assert result["Packaging"] == "Positive"
+    sentiment = {
+        "Delivery": {"sentiment": "Negative", "confidence": 0.91}
+    }
+
+    assert get_aspect_sentiment_label(sentiment, "Delivery") == "Negative"
 
 
-def test_negative_price():
-
-    review = "The product is too expensive."
+def test_get_label_missing_aspect_defaults_neutral():
 
     result = analyze_aspect_sentiment(review)
 
     assert result["Price"] == "Negative"
+    sentiment = {"Delivery": "Negative"}
+
+    assert get_aspect_sentiment_label(sentiment, "Packaging") == "Neutral"
 
 
-def test_positive_quality():
-
-    review = "The quality is amazing."
+def test_normalize_aspect_sentiment_string_input():
 
     result = analyze_aspect_sentiment(review)
 
@@ -38,8 +51,12 @@ def test_positive_quality():
 
 
 def test_positive_customer_service():
+    value = "{'Delivery': 'Negative'}"
 
-    review = "Customer support solved my issue."
+    result = normalize_aspect_sentiment(value)
+
+    assert result == {"Delivery": "Negative"}
+
 
     result = analyze_aspect_sentiment(review)
 
@@ -47,20 +64,78 @@ def test_positive_customer_service():
 
 
 def test_multiple_aspects_mixed_sentiment():
+def test_build_aspect_summary_with_plain_string_values():
 
-    review = (
-        "Delivery was late but "
-        "packaging was good."
+    df = pd.DataFrame(
+        {
+            "aspect_sentiment": [
+                {"Delivery": "Negative"},
+                {"Delivery": "Positive"},
+            ]
+        }
+    )
+
+    summary = build_aspect_summary(df)
+
+    delivery_row = summary[summary["Aspect"] == "Delivery"].iloc[0]
+
+    assert delivery_row["Negative"] == 1
+    assert delivery_row["Positive"] == 1
+    assert delivery_row["Neutral"] == 0
+
+
+def test_build_aspect_summary_with_nested_ai_mode_values():
+
+    df = pd.DataFrame(
+        {
+            "aspect_sentiment": [
+                {
+                    "Delivery": {
+                        "sentiment": "Negative",
+                        "confidence": 0.91,
+                    },
+                    "Customer Service": {
+                        "sentiment": "Negative",
+                        "confidence": 0.80,
+                    },
+                }
+            ]
+        }
     )
 
     result = analyze_aspect_sentiment(review)
 
     assert result["Delivery"] == "Negative"
     assert result["Packaging"] == "Positive"
+    summary = build_aspect_summary(df)
 
+    delivery_row = summary[summary["Aspect"] == "Delivery"].iloc[0]
+    service_row = summary[summary["Aspect"] == "Customer Service"].iloc[0]
+
+    assert delivery_row["Negative"] == 1
+    assert delivery_row["Neutral"] == 0
+
+    assert service_row["Negative"] == 1
+    assert service_row["Neutral"] == 0
+
+
+def test_build_aspect_summary_with_mixed_plain_and_nested_values():
+
+    df = pd.DataFrame(
+        {
+            "aspect_sentiment": [
+                {"Delivery": "Positive"},
+                {"Delivery": {"sentiment": "Negative", "confidence": 0.7}},
+            ]
+        }
+    )
 
 def test_no_aspect_returns_empty_dict():
+    summary = build_aspect_summary(df)
 
-    review = "I bought this yesterday."
+    delivery_row = summary[summary["Aspect"] == "Delivery"].iloc[0]
 
     assert analyze_aspect_sentiment(review) == {}
+    assert delivery_row["Positive"] == 1
+    assert delivery_row["Negative"] == 1
+    assert delivery_row["Neutral"] == 0

@@ -78,7 +78,7 @@ def initialize_database():
         #id INTEGER PRIMARY KEY AUTOINCREMENT,
         #feedback_id INTEGER NOT NULL,
         #aspect TEXT NOT NULL,
-        #entiment TEXT NOT NULL,
+         #entiment TEXT NOT NULL,
          #FOREIGN KEY (feedback_id) REFERENCES feedback(id)
         #)
         #""")
@@ -417,6 +417,39 @@ def fetch_aspect_sentiment(user_id):
         logger.error(f"Fetch Aspect Sentiment Error: {e}")
         return []
 
+
+def fetch_workspace_aspect_sentiment(workspace_id):
+    """
+    Aggregate per-aspect sentiment counts across every user in a corporate
+    workspace, mirroring what get_workspace_feedback() does for reviews.
+
+    Args:
+        workspace_id (str): the shared workspace identifier.
+
+    Returns:
+        list[tuple]: rows of (aspect, sentiment, count), e.g.
+            [("Delivery", "Negative", 12), ("Delivery", "Positive", 3), ...]
+            aggregated over every member of the workspace.
+    """
+    try:
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT fa.aspect, fa.sentiment, COUNT(*) as cnt
+                FROM feedback_aspects fa
+                JOIN feedback f ON fa.feedback_id = f.id
+                JOIN users u ON f.user_id = u.id
+                WHERE u.workspace_id = ?
+                GROUP BY fa.aspect, fa.sentiment
+                ORDER BY fa.aspect
+                """,
+                (workspace_id,),
+            )
+            return cursor.fetchall()
+    except sqlite3.Error as e:
+        logger.error(f"Fetch Workspace Aspect Sentiment Error: {e}")
+        return []
 
 
 def fetch_feedback(user_id):

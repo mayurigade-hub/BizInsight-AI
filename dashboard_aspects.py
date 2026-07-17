@@ -35,6 +35,25 @@ def normalize_aspect_sentiment(value):
     return {}
 
 
+def get_aspect_sentiment_label(sentiment, aspect):
+    """
+    Returns the sentiment label for an aspect, whether the stored
+    value is a plain string (e.g. "Negative") or a nested dict
+    (e.g. {"sentiment": "Negative", "confidence": 0.91}) as returned
+    by AI aspect mode.
+    """
+
+    value = sentiment.get(aspect)
+
+    if isinstance(value, dict):
+        return value.get("sentiment", "Neutral")
+
+    if isinstance(value, str):
+        return value
+
+    return "Neutral"
+
+
 def build_aspect_summary(df):
 
     rows = []
@@ -50,10 +69,12 @@ def build_aspect_summary(df):
             if aspect not in sentiment:
                 continue
 
-            if sentiment[aspect] == "Positive":
+            label = get_aspect_sentiment_label(sentiment, aspect)
+
+            if label == "Positive":
                 pos += 1
 
-            elif sentiment[aspect] == "Negative":
+            elif label == "Negative":
                 neg += 1
 
             else:
@@ -195,7 +216,7 @@ def plot_aspect_pie(df, aspect):
         if aspect not in sentiment:
             continue
 
-        value = sentiment[aspect]
+        value = get_aspect_sentiment_label(sentiment, aspect)
 
         if value == "Positive":
             positive += 1
@@ -248,10 +269,12 @@ def show_aspect_details(df):
         if selected_aspect not in sentiment:
             continue
 
+        label = get_aspect_sentiment_label(sentiment, selected_aspect)
+
         filtered_rows.append(
             {
                 "Review": row["review"],
-                "Aspect Sentiment": sentiment[selected_aspect],
+                "Aspect Sentiment": label,
                 "Overall Sentiment Score": round(row["sentiment"], 3)
             }
         )
