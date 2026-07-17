@@ -1,9 +1,17 @@
+import nltk
+
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 
 from aspect_extractor import (
     extract_aspects,
     ASPECT_KEYWORDS
 )
+
+# Ensure the VADER lexicon is available before creating the analyzer
+try:
+    nltk.data.find("sentiment/vader_lexicon.zip")
+except LookupError:
+    nltk.download("vader_lexicon")
 
 # Initialize VADER
 sia = SentimentIntensityAnalyzer()
