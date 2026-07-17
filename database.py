@@ -351,7 +351,11 @@ def insert_feedback_bulk_with_aspects(reviews_data, user_id):
     Args:
         reviews_data (list[tuple]): list of
             (review, sentiment, aspect_sentiment_dict)
+            or
+            (review, sentiment, aspect_sentiment_dict, date)
             where aspect_sentiment_dict is e.g. {"Delivery": "Negative", "Price": "Positive"}
+            and date, if provided, is used as the feedback's created_at instead
+            of the current timestamp (e.g. the date column from an uploaded CSV).
         user_id (int): the owning user's id.
 
     Returns:
@@ -361,11 +365,31 @@ def insert_feedback_bulk_with_aspects(reviews_data, user_id):
         with get_connection() as conn:
             cursor = conn.cursor()
 
-            for review, sentiment, aspect_sentiment in reviews_data:
-                cursor.execute(
-                    "INSERT INTO feedback (review, sentiment, user_id) VALUES (?, ?, ?)",
-                    (review, sentiment, user_id),
-                )
+            for entry in reviews_data:
+                if len(entry) == 4:
+                    review, sentiment, aspect_sentiment, date = entry
+                else:
+                    review, sentiment, aspect_sentiment = entry
+                    date = None
+
+                if date is not None:
+                    date_value = (
+                        date.strftime("%Y-%m-%d %H:%M:%S")
+                        if hasattr(date, "strftime")
+                        else str(date)
+                    )
+                    cursor.execute(
+                        """
+                        INSERT INTO feedback (review, sentiment, user_id, created_at)
+                        VALUES (?, ?, ?, ?)
+                        """,
+                        (review, sentiment, user_id, date_value),
+                    )
+                else:
+                    cursor.execute(
+                        "INSERT INTO feedback (review, sentiment, user_id) VALUES (?, ?, ?)",
+                        (review, sentiment, user_id),
+                    )
                 feedback_id = cursor.lastrowid
 
                 if aspect_sentiment:

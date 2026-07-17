@@ -339,7 +339,12 @@ with tabs[2]:
                     )
 
                     reviews_data = list(
-                        zip(df["review"], df["sentiment"], df["aspect_sentiment"])
+                        zip(
+                            df["review"],
+                            df["sentiment"],
+                            df["aspect_sentiment"],
+                            df["date"],
+                        )
                     )
 
                     if st.session_state.get("last_upload_hash") != file_hash:
