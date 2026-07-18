@@ -1,30 +1,83 @@
 # Python
 __pycache__/
-*.pyc
-.pytest_cache/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
-# Virtual Environment
+# Virtual Environments
 venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
 
-# Database
+# Databases and Vector Stores
 *.db
-
-# Environment variables
-.env
-
-# Streamlit secrets
-.streamlit/secrets.toml
-
-# VS Code
-.vscode/
-
-# OS junk
-.DS_Store
-Thumbs.db
-
-# Models
-models/finetuned_complaint_model_final/
-
-# Vector DB
+*.sqlite3
 chroma_db/
 
+# Environment Variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+
+# Streamlit config/secrets (legacy)
+.streamlit/secrets.toml
+
+# Node.js (Next.js frontend)
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/.env*.local
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/.pnp
+frontend/.pnp.js
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS and System Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# AI Models and Cache
+models/finetuned_complaint_model_final/
+.ipynb_checkpoints
+.pytest_cache/
+.eslintcache
+
+# Logs
+logs/
+*.log

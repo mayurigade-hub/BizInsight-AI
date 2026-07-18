@@ -24,75 +24,33 @@ def login(username, password):
         return None, "Incorrect password."
     return user, None
 
+def register(username, email, password, confirm_password):
 
-# ─── Password Complexity Validator ────────────────────────────────────────────
-def validate_password_strength(password):
-    """
-    Validates password strength requirements for new account registrations.
-    """
-    if len(password) < 8:
-        return False, "Password must be at least 8 characters long."
-    if not re.search(r"[A-Z]", password):
-        return False, "Password must contain at least one uppercase letter."
-    if not re.search(r"[a-z]", password):
-        return False, "Password must contain at least one lowercase letter."
-    if not re.search(r"\d", password):
-        return False, "Password must contain at least one digit."
-    if not re.search(r"[@#$%&*!]", password):
-        return False, "Password must contain at least one special character (e.g., @, #, $, %, &, *, !)."
-    return True, None
-
-
-def register(
-    username,
-    email,
-    password,
-    confirm_password,
-    workspace_type,
-    workspace_id
-):
-    username = username.strip()
-    email = email.strip()
-
-    # Normalize workspace_id so equivalent IDs (e.g. "acme" vs "acme ")
-    # are treated as the same corporate workspace.
-    workspace_id = workspace_id.strip() if workspace_id else workspace_id
-
-    if not username:
+    if not username.strip():
         return False, "Username cannot be empty."
 
-    if not email:
+    if not email.strip():
         return False, "Email address cannot be empty."
 
     email_pattern = r"^[^@]+@[^@]+\.[^@]+$"
+
     if not re.match(email_pattern, email):
         return False, "Please enter a valid email address."
 
-    is_strong, error_msg = validate_password_strength(password)
-    if not is_strong:
-        return False, error_msg
+    if len(password) < 6:
+        return False, "Password must be at least 6 characters."
 
     if password != confirm_password:
         return False, "Passwords do not match."
-    
-    if workspace_type == "corporate":
 
-        if not workspace_id:
-            return False, "Corporate ID is required."
-    
-    #To create option in the form.
-    result = create_user(
-    username=username,
-    email=email,
-    password=password,
-    workspace_type=workspace_type,
-    workspace_id=workspace_id
-    )
+    result = create_user(username, email, password)
 
     if result == "USERNAME_EXISTS":
         return False, "Username already exists."
+
     if result == "EMAIL_EXISTS":
         return False, "Email already registered."
+
     if not result:
         return False, "Registration failed."
 
@@ -100,15 +58,42 @@ def register(
 
 
 def show_auth_page():
-    col1, col2, col3 = st.columns([1, 1.2, 1])
+    # Inject auth-specific glass card style
+    st.markdown("""
+    <style>
+    /* Styling login/signup tab containers specifically as centered glass cards */
+    div[data-testid="stVerticalBlock"] > div:has(.stTabs) {
+        background: rgba(15, 23, 42, 0.7) !important;
+        backdrop-filter: blur(25px) saturate(1.2) !important;
+        -webkit-backdrop-filter: blur(25px) saturate(1.2) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 18px !important;
+        padding: 30px !important;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4) !important;
+        margin-top: 20px;
+    }
+    .auth-title-container {
+        text-align: center;
+        margin-bottom: 25px;
+    }
+    .auth-title-container img {
+        margin-bottom: 10px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    col1, col2, col3 = st.columns([1, 1.3, 1])
 
     with col2:
-        st.markdown("", unsafe_allow_html=True)
-        st.image("https://img.icons8.com/color/96/combo-chart--v1.png", width=60)
-        st.title("BizInsight AI")
-        st.caption(
-            "AI-powered customer intelligence platform for business growth")
-        st.markdown("---")
+        st.markdown(
+            """
+            <div class="auth-title-container">
+                <h1 style="margin-bottom: 0px;">📊 BizInsight AI</h1>
+                <p style="color: #94A3B8; font-size: 0.95rem;">AI-powered customer intelligence platform for business growth</p>
+            </div>
+            """, 
+            unsafe_allow_html=True
+        )
 
         tab_login, tab_register = st.tabs(["Login", "Register"])
 
@@ -144,25 +129,11 @@ def show_auth_page():
                 key="reg_email"
             )
 
-            workspace_type = st.radio(
-                "Workspace Type",
-                ["Personal", "Corporate"]
-            )
-
-            workspace_id = None
-
-            if workspace_type == "Corporate":
-                workspace_id = st.text_input(
-                    "Corporate Workspace ID",
-                    placeholder="Enter company workspace ID"
-                )
-
             new_password = st.text_input(
                 "Password",
                 type="password",
-                placeholder="Min. 8 characters",
-                key="reg_password",
-                help="Requirements:\n- At least 8 characters\n- One uppercase & one lowercase letter\n- One number\n- One special character (@, #, $, %, &, *, !)"
+                placeholder="Minimum 6 characters",
+                key="reg_password"
             )
 
             confirm_password = st.text_input(
@@ -175,70 +146,79 @@ def show_auth_page():
             st.markdown("<br>", unsafe_allow_html=True)
 
             if st.button("Create Account", use_container_width=True, type="primary"):
-                if not new_username or not email or not new_password or not confirm_password:
-                    st.error("Please fill in all fields.")
-                else:
-                    success, error = register(
-                        new_username,
-                        email,
-                        new_password,
-                        confirm_password,
-                        workspace_type.lower(),
-                        workspace_id
-                    )
+                success, error = register(
+                    new_username,
+                    email,
+                    new_password,
+                    confirm_password
+                )
 
-                    if error:
-                        st.error(error)
-                    else:
-                        st.success("Account created successfully! Please log in.")
-                        st.session_state["login_username"] = new_username
-                        st.rerun()
+                if error:
+                    st.error(error)
+                else:
+                    st.success("Account created successfully! Please log in.")
+                    st.session_state["login_username"] = new_username
+                    st.rerun()
 
 
 def show_setup_wizard():
-    col1, col2, col3 = st.columns([1, 1.2, 1])
+    st.markdown("""
+    <style>
+    /* Styling setup wizard container specifically as centered glass card */
+    div[data-testid="stVerticalBlock"] > div:has(input) {
+        background: rgba(15, 23, 42, 0.7) !important;
+        backdrop-filter: blur(25px) saturate(1.2) !important;
+        -webkit-backdrop-filter: blur(25px) saturate(1.2) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 18px !important;
+        padding: 30px !important;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4) !important;
+        margin-top: 20px;
+    }
+    .setup-title-container {
+        text-align: center;
+        margin-bottom: 25px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    col1, col2, col3 = st.columns([1, 1.3, 1])
 
     with col2:
-        st.markdown("<br><br>", unsafe_allow_html=True)
-        st.image("https://img.icons8.com/color/96/combo-chart--v1.png", width=60)
-        st.title("First Time Setup")
+        st.markdown(
+            """
+            <div class="setup-title-container">
+                <h1 style="margin-bottom: 0px;">🚀 First Time Setup</h1>
+                <p style="color: #94A3B8; font-size: 0.95rem;">Create your admin account to initialize BizInsight AI</p>
+            </div>
+            """, 
+            unsafe_allow_html=True
+        )
+
         st.info("No accounts exist yet. Create your admin account to get started.")
-        st.markdown("---")
         st.markdown("<br>", unsafe_allow_html=True)
 
         username = st.text_input(
             "Admin Username", placeholder="Choose an admin username")
         email = st.text_input(
             "Admin Email", placeholder="Enter an admin email")
-        
         password = st.text_input(
-            "Password", 
-            type="password", 
-            placeholder="Min. 8 characters",
-            help="Requirements:\n- At least 8 characters\n- One uppercase & one lowercase letter\n- One number\n- One special character (@, #, $, %, &, *, !)"
-        )
+            "Password", type="password", placeholder="Min. 6 characters")
         confirm = st.text_input(
             "Confirm Password", type="password", placeholder="Repeat your password")
         st.markdown("<br>", unsafe_allow_html=True)
 
         if st.button("Create Admin Account", use_container_width=True, type="primary"):
-            username_clean = username.strip()
-            email_clean = email.strip()
-            if not username_clean or not email_clean or not password or not confirm:
+            if not username or not email or not password or not confirm:
                 st.error("Please fill in all fields.")
-            elif not re.match(r"^[^@]+@[^@]+\.[^@]+$", email_clean):
-                st.error("Please enter a valid email address.")
+            elif len(password) < 6:
+                st.error("Password must be at least 6 characters.")
+            elif password != confirm:
+                st.error("Password confirmation does not match.")
             else:
-                # Validates complexity, then confirms matching string arrays
-                is_strong, error_msg = validate_password_strength(password)
-                if not is_strong:
-                    st.error(error_msg)
-                elif password != confirm:
-                    st.error("Passwords do not match.")
+                success = create_user(username, email, password, role="admin")
+                if success:
+                    st.success("Admin account created. You can now log in.")
+                    st.rerun()
                 else:
-                    success = create_user(username_clean, email_clean, password, role="admin")
-                    if success:
-                        st.success("Admin account created. You can now log in.")
-                        st.rerun()
-                    else:
-                        st.error("Something went wrong. Try again.")
+                    st.error("Something went wrong. Try again.")
