@@ -13,8 +13,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 import pandas as pd
 from database import fetch_feedback
-from clustering.run_clustering import run_pipeline
-from clustering.vectorize import load_model as load_embedding_model
 from bizinsight_api.routes.auth import get_current_user
 from bizinsight_api.models.schemas import (
     ClusteringRequest, ClusteringJobStatus, ClusteringResult, ClusterItem
@@ -42,13 +40,14 @@ def _get_embedding_model():
                 if os.path.exists(model_path):
                     _embedding_model = SentenceTransformer(model_path)
                 else:
-                    _embedding_model = SentenceTransformer("all-mpnet-base-v2")
+                    _embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
     return _embedding_model
 
 
 def _run_clustering_job(job_id: str, reviews: list, mode: str):
     """Execute clustering in a background thread and store results."""
     try:
+        from clustering.run_clustering import run_pipeline
         _jobs[job_id]["status"] = "running"
         _jobs[job_id]["message"] = "Loading embedding model..."
 

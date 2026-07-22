@@ -55,12 +55,17 @@ class RAGChainManager:
 
         self._qa_chain = None
         self._conv_chains = {}  
+        self._compressor = None
 
-        # --- INITIALIZE THE RE-RANKER MODEL (Done once on startup) ---
-        print("🧠 Loading Re-Ranker Model... (This may take a moment on first run)")
-        self.reranker_model = HuggingFaceCrossEncoder(model_name="cross-encoder/ms-marco-MiniLM-L-6-v2")
-        # Initializing this compressor with the specified re-ranker model, we can enhance the retrieval process by keeping only the most relevant documents for the LLM to consider when generating answers.
-        self.compressor = CrossEncoderReranker(model=self.reranker_model, top_n=8)
+    @property
+    def compressor(self):
+        if self._compressor is None:
+            from langchain_community.cross_encoders import HuggingFaceCrossEncoder
+            from langchain_classic.retrievers.document_compressors import CrossEncoderReranker
+            logger.info("Loading Re-Ranker Model lazily...")
+            reranker_model = HuggingFaceCrossEncoder(model_name="cross-encoder/ms-marco-MiniLM-L-6-v2")
+            self._compressor = CrossEncoderReranker(model=reranker_model, top_n=8)
+        return self._compressor
 
     # The get_qa_chain method constructs a RetrievalQA chain that incorporates multi-query expansion and re-ranking to provide accurate answers based on retrieved documents. It first creates a base retriever from the vector store manager, then wraps it with a MultiQueryRetriever to generate multiple queries for better context coverage, and finally applies a ContextualCompressionRetriever with the cross-encoder re-ranker to filter down to the most relevant documents before passing them to the LLM for answer generation.
     def get_qa_chain(self, search_filter=None):

@@ -21,8 +21,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize the RAG Chain Manager which sets up the vector store, LLM, and chains
-chain_manager = RAGChainManager()
+# Lazy singleton for chain_manager to keep startup memory low
+_chain_manager = None
+
+def get_chain_manager():
+    global _chain_manager
+    if _chain_manager is None:
+        logger.info("Initializing RAGChainManager on demand...")
+        _chain_manager = RAGChainManager()
+    return _chain_manager
 
 # Define request and response models for better type checking and documentation
 class ChatRequest(BaseModel):
@@ -50,7 +57,8 @@ class HealthResponse(BaseModel):
 @app.get("/health", response_model=HealthResponse) 
 async def health_check():
     try:
-        count = chain_manager.vector_store_manager.vectorstore._collection.count() # Access the internal collection to get the count of vectors
+        cm = get_chain_manager()
+        count = cm.vector_store_manager.vectorstore._collection.count() # Access the internal collection to get the count of vectors
         return HealthResponse(status="ok", vector_count=count) 
     except Exception as e: 
         logger.error(f"Health check failed: {e}") # Log the error for debugging purposes
@@ -60,6 +68,7 @@ async def health_check():
 @app.post("/chat", response_model=ChatResponse)
 def chat(request: ChatRequest):
     max_retries = 4  # Number of retry attempts for LLM calls in case of failure, with exponential backoff
+    cm = get_chain_manager()
 
     # --- SMART METADATA ROUTER ---
     question_lower = request.question.lower()
@@ -78,7 +87,7 @@ def chat(request: ChatRequest):
     # Bypassing LLM call if API Key is not set, enabling full offline/keyless demo functionality
     if RAGConfig.OPENROUTER_API_KEY == "NO_KEY_PROVIDED":
         # Get base retriever and retrieve related reviews directly
-        base_retriever = chain_manager.vector_store_manager.get_retriever(search_filter=search_filter)
+        base_retriever = cm.vector_store_manager.get_retriever(search_filter=search_filter)
         docs = base_retriever.invoke(request.question)
         sources = [doc.page_content for doc in docs]
         
@@ -109,12 +118,12 @@ def chat(request: ChatRequest):
         try:
             # Depending on whether the user wants to use memory and has provided a session ID, we either invoke a conversational chain (which maintains context across messages) or a standard QA chain (which treats each message independently). The chains will use the search_filter determined by the smart metadata router to fetch relevant documents from the vector store.
             if request.use_memory and request.session_id: 
-                chain = chain_manager.get_conversational_chain(request.session_id, search_filter=search_filter)
+                chain = cm.get_conversational_chain(request.session_id, search_filter=search_filter)
                 result = chain.invoke({"question": request.question})
                 answer = result.get("answer", "")
                 sources = [doc.page_content for doc in result.get("source_documents", [])]
             else:
-                chain = chain_manager.get_qa_chain(search_filter=search_filter)
+                chain = cm.get_qa_chain(search_filter=search_filter)
                 result = chain.invoke({"query": request.question})
                 answer = result.get("result", result.get("answer", ""))
                 sources = [doc.page_content for doc in result.get("source_documents", [])]
@@ -149,8 +158,9 @@ def chat(request: ChatRequest):
 @app.post("/sync")
 async def sync_documents(request: SyncRequest):
     try:
+        cm = get_chain_manager()
         # We call the add_documents method of the VectorStoreManager to add the new documents to ChromaDB. This method also handles clearing old documents to prevent duplicates. If the syncing process is successful, we return a success message along with the count of added documents. 
-        chain_manager.vector_store_manager.add_documents(request.documents)
+        cm.vector_store_manager.add_documents(request.documents)
         return {"status": "success", "added_count": len(request.documents)}
     except Exception as e:
         # If there is an error during syncing (e.g., issues with ChromaDB, invalid document format), we log the exception and return a 500 Internal Server Error response with the error details.
