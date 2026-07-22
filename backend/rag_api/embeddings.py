@@ -10,10 +10,13 @@ _embedding_model = None
 def get_embedding_model():
     global _embedding_model
     if _embedding_model is None:
+        import os
         from langchain_huggingface import HuggingFaceEmbeddings
-        logger.info(f"Loading embedding model: {RAGConfig.EMBEDDING_MODEL}")
+        local_model_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "models", "finetuned_complaint_model_final"))
+        model_name = local_model_path if os.path.exists(local_model_path) else RAGConfig.EMBEDDING_MODEL
+        logger.info(f"Loading embedding model: {model_name}")
         _embedding_model = HuggingFaceEmbeddings(
-            model_name=RAGConfig.EMBEDDING_MODEL,
+            model_name=model_name,
             model_kwargs={"device": "cpu"},  # Use CPU for embedding generation
             encode_kwargs={'normalize_embeddings': True} # Normalize embeddings for better similarity search performance
         )
