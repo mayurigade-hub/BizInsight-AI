@@ -32,7 +32,10 @@ export default function DashboardHome() {
 
   const fetchData = async () => {
     const token = localStorage.getItem("bizinsight_token");
-    if (!token) return;
+    if (!token || token.startsWith("demo_")) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const [summary, risk] = await Promise.all([api.getSummary(token), api.getAlerts(token)]);

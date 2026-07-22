@@ -30,11 +30,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [darkMode, setDarkMode] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem("bizinsight_token");
-    const storedUser = localStorage.getItem("bizinsight_user");
+    let token = localStorage.getItem("bizinsight_token");
+    let storedUser = localStorage.getItem("bizinsight_user");
 
     if (!token && !storedUser) {
-      router.push("/");
+      const guestUser = { id: 1, username: "Guest User", email: "guest@bizinsight.ai", role: "User" };
+      token = "demo_guest_token";
+      localStorage.setItem("bizinsight_token", token);
+      localStorage.setItem("bizinsight_user", JSON.stringify(guestUser));
+      setUser(guestUser);
+      setLoading(false);
       return;
     }
 
@@ -46,21 +51,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       }
     }
 
-    if (token) {
-      if (token.startsWith("demo_")) {
-        setLoading(false);
-        return;
-      }
+    if (token && !token.startsWith("demo_")) {
       api.me(token)
         .then((userData) => {
           setUser(userData);
           localStorage.setItem("bizinsight_user", JSON.stringify(userData));
         })
         .catch(() => {
-          if (!storedUser) {
-            localStorage.removeItem("bizinsight_token");
-            router.push("/");
-          }
+          // Keep stored user or fallback
         })
         .finally(() => {
           setLoading(false);
