@@ -5,10 +5,6 @@ from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
 from langchain_classic.retrievers.multi_query import MultiQueryRetriever
 
-from langchain_classic.retrievers import ContextualCompressionRetriever
-from langchain_classic.retrievers.document_compressors import CrossEncoderReranker
-from langchain_community.cross_encoders import HuggingFaceCrossEncoder
-
 from .vector_store import VectorStoreManager
 from .config import RAGConfig
 
@@ -76,6 +72,7 @@ class RAGChainManager:
         mq_retriever = MultiQueryRetriever.from_llm(retriever=base_retriever, llm=self.llm)
         
         # 3. Re-Ranking (Grade all results and keep only the top 8 best matches)
+        from langchain_classic.retrievers import ContextualCompressionRetriever
         compression_retriever = ContextualCompressionRetriever(
             base_compressor=self.compressor,
             base_retriever=mq_retriever
@@ -111,6 +108,7 @@ class RAGChainManager:
             mq_retriever = MultiQueryRetriever.from_llm(retriever=base_retriever, llm=self.llm)
             
             # Layer 3: Cross-Encoder Re-Ranker
+            from langchain_classic.retrievers import ContextualCompressionRetriever
             compression_retriever = ContextualCompressionRetriever(
                 base_compressor=self.compressor,
                 base_retriever=mq_retriever
