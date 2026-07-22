@@ -20,7 +20,8 @@ export default function PublicChatPage() {
 
   useEffect(() => {
     setSessionId(`s_${Math.random().toString(36).substr(2, 9)}`);
-    fetch("http://localhost:8001/api/rag/health").then(r => r.json()).then(d => setDbStatus({ status: "ok", count: d.vector_count ?? 0 })).catch(() => setDbStatus({ status: "error", count: null }));
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
+    fetch(`${baseUrl}/api/rag/health`).then(r => r.json()).then(d => setDbStatus({ status: "ok", count: d.vector_count ?? 0 })).catch(() => setDbStatus({ status: "error", count: null }));
   }, []);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, loading]);
