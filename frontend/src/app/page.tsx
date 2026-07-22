@@ -67,7 +67,7 @@ export default function UnifiedApp() {
   };
 
   const handleGoogleAuth = () => {
-    const googleUser = { id: 99, username: "Google User", email: "user@gmail.com", role: "User" };
+    const googleUser = { id: 99, username: "Prateek Singh", name: "Prateek Singh", email: "prateek.singh@gmail.com", role: "Pro Account" };
     const demoToken = "demo_google_token_" + Date.now();
     localStorage.setItem("bizinsight_token", demoToken);
     localStorage.setItem("bizinsight_user", JSON.stringify(googleUser));

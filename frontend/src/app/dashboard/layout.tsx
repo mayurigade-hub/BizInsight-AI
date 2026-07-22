@@ -112,8 +112,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="flex items-center gap-3 px-2">
             <div className="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center"><User size={16} className="text-zinc-500" /></div>
             <div className="flex-1 min-w-0">
-              <div className="text-xs font-semibold truncate">{user?.username}</div>
-              <div className="text-[10px] text-zinc-500 capitalize">{user?.role}</div>
+              <div className="text-xs font-semibold truncate">{user?.name || user?.username || "Prateek Singh"}</div>
+              <div className="text-[10px] text-zinc-500 truncate">{user?.email || user?.role || "Google User"}</div>
             </div>
           </div>
           <div className="flex gap-2">
