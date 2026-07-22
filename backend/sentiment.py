@@ -74,15 +74,19 @@ def _convert_bert_prediction(label: str, score: float) -> float:
 def _bert_score(text: str) -> float:
     """
     Returns a float in [-1, +1].
-    BERT returns {"label": "POSITIVE"/"NEGATIVE", "score": 0..1}
-    We convert:
-      POSITIVE → +score
-      NEGATIVE → -score
+    Uses RoBERTa model if available, falling back safely to VADER under low-memory environments.
     """
-    result = _get_bert_pipeline()(text)[0]
-    label = result["label"].lower()
-    score = result["score"]          # confidence: 0.0 to 1.0
-    return _convert_bert_prediction(label, score)
+    if os.getenv("DISABLE_BERT", "true").lower() == "true":
+        return _vader_score(text)
+
+    try:
+        result = _get_bert_pipeline()(text)[0]
+        label = result["label"].lower()
+        score = result["score"]
+        return _convert_bert_prediction(label, score)
+    except Exception as e:
+        logger.warning(f"BERT model skipped ({e}). Using VADER fallback.")
+        return _vader_score(text)
 
 def _ensemble_score(vader_s: float, bert_s: float) -> float:
     
@@ -141,37 +145,27 @@ def analyze(text: str) -> dict:
  
 def analyze_batch(texts: list) -> list:
     """
-    Analyze a list of reviews. More efficient than calling analyze() in a loop
-    because BERT processes batches faster on GPU.
- 
-    Parameters
-    ----------
-    texts : list of str
- 
-    Returns
-    -------
-    list of dicts (same structure as analyze())
+    Analyze a list of reviews using VADER + RoBERTa ensemble with automatic low-memory fallback.
     """
-    # Batch BERT inference
-    bert_results = _get_bert_pipeline()(texts, batch_size=16, truncation=True, max_length=512)
- 
-    output = []
-    for text, bert_result in zip(texts, bert_results):
-        v = _vader_score(text)
-        # ✅ consistent with _bert_score
-        label = bert_result["label"]
+    if os.getenv("DISABLE_BERT", "true").lower() == "true":
+        return [analyze(text) for text in texts]
 
-        b = _convert_bert_prediction(
-            label,
-            bert_result["score"]
-        )
-        final = _ensemble_score(v, b) + _concession_penalty(text)
-        final = max(-1.0, min(1.0, final))
-        output.append({
-            "label":       _label(final),
-            "score":       round(final, 4),
-            "vader_score": round(v, 4),
-            "bert_score":  round(b, 4),
-        })
- 
-    return output
+    try:
+        bert_results = _get_bert_pipeline()(texts, batch_size=16, truncation=True, max_length=512)
+        output = []
+        for text, bert_result in zip(texts, bert_results):
+            v = _vader_score(text)
+            label = bert_result["label"]
+            b = _convert_bert_prediction(label, bert_result["score"])
+            final = _ensemble_score(v, b) + _concession_penalty(text)
+            final = max(-1.0, min(1.0, final))
+            output.append({
+                "label":       _label(final),
+                "score":       round(final, 4),
+                "vader_score": round(v, 4),
+                "bert_score":  round(b, 4),
+            })
+        return output
+    except Exception as e:
+        logger.warning(f"Batch BERT inference skipped ({e}); using VADER.")
+        return [analyze(text) for text in texts]
