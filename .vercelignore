@@ -1,0 +1,10 @@
+.venv
+venv
+__pycache__
+*.db
+backend/
+bizinsight.db
+data/
+chroma_db/
+node_modules
+.next
