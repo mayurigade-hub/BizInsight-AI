@@ -13,10 +13,11 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from database import (
-    create_user, get_user_by_username, verify_password, no_users_exist
+    create_user, get_user_by_username, verify_password, no_users_exist,
+    get_user_by_email, create_google_user
 )
 from bizinsight_api.models.schemas import (
-    RegisterRequest, LoginRequest, AuthResponse, UserInfo
+    RegisterRequest, LoginRequest, AuthResponse, UserInfo, GoogleAuthRequest
 )
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
@@ -131,4 +132,76 @@ def me(current_user: dict = Depends(get_current_user)):
         username=user["username"],
         email=user["email"],
         role=user["role"],
+    )
+
+
+@router.post("/google", response_model=AuthResponse)
+def google_auth(req: GoogleAuthRequest):
+    """
+    Authenticate a user via Google OAuth.
+    Verifies the Google ID token, creates a new user if needed,
+    and returns a JWT token.
+    """
+    from google.oauth2 import id_token as google_id_token
+    from google.auth.transport import requests as google_requests
+
+    GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+
+    try:
+        # Verify the Google ID token
+        idinfo = google_id_token.verify_oauth2_token(
+            req.id_token,
+            google_requests.Request(),
+            GOOGLE_CLIENT_ID,
+        )
+
+        # Extract user info from verified token
+        google_email = idinfo.get("email")
+        google_name = idinfo.get("name", google_email.split("@")[0])
+
+        if not google_email:
+            raise HTTPException(status_code=400, detail="Google account has no email.")
+
+        if not idinfo.get("email_verified", False):
+            raise HTTPException(status_code=400, detail="Google email is not verified.")
+
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=f"Invalid Google token: {str(e)}")
+
+    # Check if user already exists by email
+    user = get_user_by_email(google_email)
+
+    if not user:
+        # First user becomes admin
+        role = "admin" if no_users_exist() else "user"
+
+        # Create new user from Google OAuth
+        result = create_google_user(google_name, google_email, role=role)
+
+        if result == "EMAIL_EXISTS":
+            # Edge case: email exists but get_user_by_email missed it
+            user = get_user_by_email(google_email)
+        elif result == "USERNAME_EXISTS":
+            # Name collision — append a suffix
+            unique_name = f"{google_name}_{google_email.split('@')[0]}"
+            create_google_user(unique_name, google_email, role=role)
+            user = get_user_by_email(google_email)
+        elif not result:
+            raise HTTPException(status_code=500, detail="Failed to create Google user.")
+        else:
+            user = get_user_by_email(google_email)
+
+    if not user:
+        raise HTTPException(status_code=500, detail="Failed to retrieve user after Google auth.")
+
+    token = create_token(user)
+
+    return AuthResponse(
+        token=token,
+        user=UserInfo(
+            id=user["id"],
+            username=user["username"],
+            email=user["email"],
+            role=user["role"],
+        ),
     )

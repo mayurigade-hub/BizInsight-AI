@@ -146,6 +146,58 @@ def verify_password(plain_password, hashed_password):
     return bcrypt.checkpw(plain_password.encode(), hashed_password.encode())
 
 
+def get_user_by_email(email):
+    """Look up a user by email address (used for Google OAuth)."""
+    try:
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT id, username, email, password_hash, role
+                FROM users
+                WHERE email = ?
+                """,
+                (email.strip(),)
+            )
+            row = cursor.fetchone()
+            if row:
+                return {
+                    "id": row[0],
+                    "username": row[1],
+                    "email": row[2],
+                    "password_hash": row[3],
+                    "role": row[4],
+                }
+            return None
+    except sqlite3.Error as e:
+        logger.error(f"Get User By Email Error: {e}")
+        return None
+
+
+def create_google_user(username, email, role="user"):
+    """Create a user from Google OAuth (no password required)."""
+    try:
+        placeholder_hash = "GOOGLE_OAUTH_USER"
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, ?)",
+                (username, email, placeholder_hash, role)
+            )
+            conn.commit()
+            return True
+    except sqlite3.IntegrityError as e:
+        error_message = str(e).lower()
+        if "username" in error_message:
+            return "USERNAME_EXISTS"
+        if "email" in error_message:
+            return "EMAIL_EXISTS"
+        return False
+    except sqlite3.Error as e:
+        logger.error(f"Create Google User Error: {e}")
+        return False
+
+
 def fetch_all_users():
     try:
         with get_connection() as conn:

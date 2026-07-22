@@ -32,7 +32,7 @@ export default function DashboardHome() {
 
   const fetchData = async () => {
     const token = localStorage.getItem("bizinsight_token");
-    if (!token || token.startsWith("demo_")) {
+    if (!token) {
       setLoading(false);
       return;
     }

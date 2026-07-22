@@ -34,6 +34,10 @@ class UserInfo(BaseModel):
     role: str
 
 
+class GoogleAuthRequest(BaseModel):
+    id_token: str
+
+
 # ─── Reviews ──────────────────────────────────────────────────────────────────
 
 class ReviewItem(BaseModel):

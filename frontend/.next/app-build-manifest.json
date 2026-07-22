@@ -12,16 +12,8 @@
       "static/chunks/fd9d1056-0807e69ea9c303ac.js",
       "static/chunks/117-f48404e42cb32be4.js",
       "static/chunks/main-app-92dab43658f0e388.js",
-      "static/css/13ae5c30903f5755.css",
+      "static/css/77a8efcc2fc5412b.css",
       "static/chunks/app/layout-16ab720a4c23c681.js"
-    ],
-    "/page": [
-      "static/chunks/webpack-a3c37fcbf859f6f9.js",
-      "static/chunks/fd9d1056-0807e69ea9c303ac.js",
-      "static/chunks/117-f48404e42cb32be4.js",
-      "static/chunks/main-app-92dab43658f0e388.js",
-      "static/chunks/603-b2a0e743355b2670.js",
-      "static/chunks/app/page-f44707f55613070e.js"
     ],
     "/chat/page": [
       "static/chunks/webpack-a3c37fcbf859f6f9.js",
@@ -29,14 +21,22 @@
       "static/chunks/117-f48404e42cb32be4.js",
       "static/chunks/main-app-92dab43658f0e388.js",
       "static/chunks/603-b2a0e743355b2670.js",
-      "static/chunks/app/chat/page-476877cad77e870b.js"
+      "static/chunks/app/chat/page-5b61c3198c9ead65.js"
+    ],
+    "/page": [
+      "static/chunks/webpack-a3c37fcbf859f6f9.js",
+      "static/chunks/fd9d1056-0807e69ea9c303ac.js",
+      "static/chunks/117-f48404e42cb32be4.js",
+      "static/chunks/main-app-92dab43658f0e388.js",
+      "static/chunks/603-b2a0e743355b2670.js",
+      "static/chunks/app/page-1ba74b4deffb5da0.js"
     ],
     "/dashboard/alerts/page": [
       "static/chunks/webpack-a3c37fcbf859f6f9.js",
       "static/chunks/fd9d1056-0807e69ea9c303ac.js",
       "static/chunks/117-f48404e42cb32be4.js",
       "static/chunks/main-app-92dab43658f0e388.js",
-      "static/chunks/app/dashboard/alerts/page-e9e848f56c293379.js"
+      "static/chunks/app/dashboard/alerts/page-19e1140a2a5ebbab.js"
     ],
     "/dashboard/layout": [
       "static/chunks/webpack-a3c37fcbf859f6f9.js",
@@ -44,21 +44,7 @@
       "static/chunks/117-f48404e42cb32be4.js",
       "static/chunks/main-app-92dab43658f0e388.js",
       "static/chunks/603-b2a0e743355b2670.js",
-      "static/chunks/app/dashboard/layout-9cdec24862ec4672.js"
-    ],
-    "/dashboard/clusters/page": [
-      "static/chunks/webpack-a3c37fcbf859f6f9.js",
-      "static/chunks/fd9d1056-0807e69ea9c303ac.js",
-      "static/chunks/117-f48404e42cb32be4.js",
-      "static/chunks/main-app-92dab43658f0e388.js",
-      "static/chunks/app/dashboard/clusters/page-ffea1d0ec49e0636.js"
-    ],
-    "/dashboard/chat/page": [
-      "static/chunks/webpack-a3c37fcbf859f6f9.js",
-      "static/chunks/fd9d1056-0807e69ea9c303ac.js",
-      "static/chunks/117-f48404e42cb32be4.js",
-      "static/chunks/main-app-92dab43658f0e388.js",
-      "static/chunks/app/dashboard/chat/page-ed46a6c47c5a07ed.js"
+      "static/chunks/app/dashboard/layout-eedfb72a01710a34.js"
     ],
     "/dashboard/page": [
       "static/chunks/webpack-a3c37fcbf859f6f9.js",
@@ -66,7 +52,14 @@
       "static/chunks/117-f48404e42cb32be4.js",
       "static/chunks/main-app-92dab43658f0e388.js",
       "static/chunks/603-b2a0e743355b2670.js",
-      "static/chunks/app/dashboard/page-89bf0e8522ceb483.js"
+      "static/chunks/app/dashboard/page-d35fcc7ac5260178.js"
+    ],
+    "/dashboard/chat/page": [
+      "static/chunks/webpack-a3c37fcbf859f6f9.js",
+      "static/chunks/fd9d1056-0807e69ea9c303ac.js",
+      "static/chunks/117-f48404e42cb32be4.js",
+      "static/chunks/main-app-92dab43658f0e388.js",
+      "static/chunks/app/dashboard/chat/page-623840b9ba81c237.js"
     ],
     "/dashboard/upload/page": [
       "static/chunks/webpack-a3c37fcbf859f6f9.js",
@@ -74,7 +67,14 @@
       "static/chunks/117-f48404e42cb32be4.js",
       "static/chunks/main-app-92dab43658f0e388.js",
       "static/chunks/603-b2a0e743355b2670.js",
-      "static/chunks/app/dashboard/upload/page-f2e4e39cdf0f0821.js"
+      "static/chunks/app/dashboard/upload/page-ef3172255d33a390.js"
+    ],
+    "/dashboard/clusters/page": [
+      "static/chunks/webpack-a3c37fcbf859f6f9.js",
+      "static/chunks/fd9d1056-0807e69ea9c303ac.js",
+      "static/chunks/117-f48404e42cb32be4.js",
+      "static/chunks/main-app-92dab43658f0e388.js",
+      "static/chunks/app/dashboard/clusters/page-0961eb8031e5728e.js"
     ]
   }
 }

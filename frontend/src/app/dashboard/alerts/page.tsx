@@ -64,7 +64,7 @@ export default function AlertsPage() {
               <p className="text-xs text-zinc-500 leading-relaxed mb-3">Automated alerts dispatch when risk exceeds threshold.</p>
               <div className="space-y-1.5 text-[10px] text-zinc-500 border-t border-zinc-200 dark:border-zinc-800 pt-3">
                 <div>Sender: <span className="text-zinc-900 dark:text-white">alerts@bizinsight.ai</span></div>
-                <div>Recipient: <span className="text-zinc-900 dark:text-white">stakeholders@company.com</span></div>
+                <div>Recipient: <span className="text-zinc-900 dark:text-white">{(() => { try { const u = JSON.parse(localStorage.getItem("bizinsight_user") || "{}"); return u.email || "Not configured"; } catch { return "Not configured"; } })()}</span></div>
                 <div>Trigger: <span className="text-zinc-900 dark:text-white">Negative &gt; 40%</span></div>
               </div>
             </div>

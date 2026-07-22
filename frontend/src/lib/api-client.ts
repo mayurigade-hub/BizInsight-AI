@@ -52,6 +52,13 @@ export const api = {
     });
   },
 
+  async googleLogin(body: { id_token: string }) {
+    return request<any>("/api/auth/google", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
   // Dashboard
   async getSummary(token: string) {
     return request<any>("/api/dashboard/summary", {

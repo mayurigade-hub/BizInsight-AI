@@ -30,19 +30,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [darkMode, setDarkMode] = useState(false);
 
   useEffect(() => {
-    let token = localStorage.getItem("bizinsight_token");
-    let storedUser = localStorage.getItem("bizinsight_user");
+    const token = localStorage.getItem("bizinsight_token");
+    const storedUser = localStorage.getItem("bizinsight_user");
 
-    if (!token && !storedUser) {
-      const guestUser = { id: 1, username: "Guest User", email: "guest@bizinsight.ai", role: "User" };
-      token = "demo_guest_token";
-      localStorage.setItem("bizinsight_token", token);
-      localStorage.setItem("bizinsight_user", JSON.stringify(guestUser));
-      setUser(guestUser);
-      setLoading(false);
+    if (!token) {
+      router.push("/");
       return;
     }
 
+    // Load stored user immediately for fast UI render
     if (storedUser) {
       try {
         setUser(JSON.parse(storedUser));
@@ -51,21 +47,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       }
     }
 
-    if (token && !token.startsWith("demo_")) {
-      api.me(token)
-        .then((userData) => {
-          setUser(userData);
-          localStorage.setItem("bizinsight_user", JSON.stringify(userData));
-        })
-        .catch(() => {
-          // Keep stored user or fallback
-        })
-        .finally(() => {
-          setLoading(false);
-        });
-    } else {
-      setLoading(false);
-    }
+    // Verify token with backend
+    api.me(token)
+      .then((userData) => {
+        setUser(userData);
+        localStorage.setItem("bizinsight_user", JSON.stringify(userData));
+      })
+      .catch(() => {
+        // Token invalid — clear and redirect to login
+        if (!storedUser) {
+          localStorage.removeItem("bizinsight_token");
+          localStorage.removeItem("bizinsight_user");
+          router.push("/");
+        }
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, [router]);
 
   useEffect(() => {
