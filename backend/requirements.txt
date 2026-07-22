@@ -22,6 +22,7 @@ langchain
 langchain-community
 langchain-chroma
 langchain-openai
+langchain-huggingface
 fastapi
 uvicorn
 tf-keras
