@@ -47,6 +47,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
 
     if (token) {
+      if (token.startsWith("demo_")) {
+        setLoading(false);
+        return;
+      }
       api.me(token)
         .then((userData) => {
           setUser(userData);

@@ -67,12 +67,12 @@ export default function UnifiedApp() {
   };
 
   const handleGoogleAuth = () => {
-    const googleUser = { id: 99, username: "google_demo_user", email: "user@gmail.com" };
+    const googleUser = { id: 99, username: "Google User", email: "user@gmail.com", role: "User" };
     const demoToken = "demo_google_token_" + Date.now();
     localStorage.setItem("bizinsight_token", demoToken);
     localStorage.setItem("bizinsight_user", JSON.stringify(googleUser));
     setUser(googleUser);
-    router.push("/dashboard");
+    window.location.href = "/dashboard";
   };
 
   return (
