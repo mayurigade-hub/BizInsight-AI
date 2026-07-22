@@ -31,10 +31,39 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   useEffect(() => {
     const token = localStorage.getItem("bizinsight_token");
-    if (!token) { router.push("/"); return; }
-    api.me(token)
-      .then((userData) => { setUser(userData); localStorage.setItem("bizinsight_user", JSON.stringify(userData)); setLoading(false); })
-      .catch(() => { localStorage.removeItem("bizinsight_token"); localStorage.removeItem("bizinsight_user"); router.push("/"); });
+    const storedUser = localStorage.getItem("bizinsight_user");
+
+    if (!token && !storedUser) {
+      router.push("/");
+      return;
+    }
+
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (e) {
+        console.error("Failed to parse stored user", e);
+      }
+    }
+
+    if (token) {
+      api.me(token)
+        .then((userData) => {
+          setUser(userData);
+          localStorage.setItem("bizinsight_user", JSON.stringify(userData));
+        })
+        .catch(() => {
+          if (!storedUser) {
+            localStorage.removeItem("bizinsight_token");
+            router.push("/");
+          }
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    } else {
+      setLoading(false);
+    }
   }, [router]);
 
   useEffect(() => {
