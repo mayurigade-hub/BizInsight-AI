@@ -25,4 +25,5 @@ fastapi
 uvicorn
 tf-keras
 google-auth>=2.29.0
+PyJWT>=2.8.0
 requests
