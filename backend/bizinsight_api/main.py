@@ -87,10 +87,11 @@ def health():
 
 if __name__ == "__main__":
     import uvicorn
+    port = int(os.getenv("PORT", 8001))
     uvicorn.run(
         "bizinsight_api.main:app",
         host="0.0.0.0",
-        port=8001,
-        reload=True,
+        port=port,
+        reload=False,
         log_level="info",
     )

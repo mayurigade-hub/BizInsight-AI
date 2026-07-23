@@ -29,9 +29,17 @@ def dashboard_summary(current_user: dict = Depends(get_current_user)):
     data = fetch_feedback(user_id=current_user["id"])
 
     if not data:
-        raise HTTPException(
-            status_code=404,
-            detail="No reviews found. Upload your first batch to see your sentiment health here.",
+        return DashboardSummary(
+            total_reviews=0,
+            positive_count=0,
+            negative_count=0,
+            neutral_count=0,
+            positive_percent=0.0,
+            negative_percent=0.0,
+            neutral_percent=0.0,
+            avg_sentiment=0.0,
+            trend=[],
+            top_keywords=[],
         )
 
     df = pd.DataFrame(data, columns=["review", "sentiment", "date"])

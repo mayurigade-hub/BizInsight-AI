@@ -126,7 +126,7 @@ def me(current_user: dict = Depends(get_current_user)):
     """Return the current authenticated user's info."""
     user = get_user_by_username(current_user["username"])
     if not user:
-        raise HTTPException(status_code=404, detail="User not found.")
+        raise HTTPException(status_code=401, detail="User session invalid or user not found.")
     return UserInfo(
         id=user["id"],
         username=user["username"],

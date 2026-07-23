@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: bizinsight-backend
+    env: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt && python download_model.py
+    startCommand: uvicorn bizinsight_api.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: DISABLE_BERT
+        value: "true"
+      - key: ALLOW_ALL_ORIGINS
+        value: "true"

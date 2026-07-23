@@ -3,7 +3,9 @@ import logging
 import bcrypt
 from contextlib import contextmanager
 
-DB_NAME = "bizinsight.db"
+import os
+
+DB_NAME = os.getenv("DB_PATH", os.path.join(os.path.dirname(os.path.abspath(__file__)), "bizinsight.db"))
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
